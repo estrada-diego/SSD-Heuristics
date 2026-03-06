@@ -1,0 +1,42 @@
+<NAME>
+fix_empty_program_structure
+</NAME>
+
+<DESCRIPTION>
+The error "No EVOLVE-BLOCK regions found in original content" indicates that the system is trying to parse an empty or malformed file. Since the "Incorrect Program to Fix" section was completely empty, I need to provide the basic program structure that the evolution system expects. The issue is that there's no file content at all to work with. I'll create a minimal working program that follows the expected structure.
+</DESCRIPTION>
+
+<CODE>
+```python
+from typing import Dict, List
+
+FEATURE_COLUMNS = [
+    "size",
+    "queue_len", 
+    "prev_queue_len_1",
+    "prev_queue_len_2",
+    "prev_queue_len_3",
+    "prev_latency_1",
+    "prev_latency_2", 
+    "prev_latency_3",
+    "prev_throughput_1",
+    "prev_throughput_2",
+    "prev_throughput_3",
+    "latency",
+]
+
+# EVOLVE-BLOCK-START
+def predict(features: Dict[str, float]) -> int:
+    # Simple baseline heuristic
+    if features["latency"] > 100:
+        return 1
+    if features["queue_len"] > 5:
+        return 1
+    return 0
+# EVOLVE-BLOCK-END
+
+def run_experiment(features: List[Dict[str, float]], labels: List[int], seed: int = 42) -> Dict:
+    predictions = [predict(f) for f in features]
+    return {"predictions": predictions, "labels": labels}
+```
+</CODE>

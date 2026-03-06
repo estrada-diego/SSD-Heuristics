@@ -1,3 +1,13 @@
+<NAME>
+create_complete_program
+</NAME>
+
+<DESCRIPTION>
+The error indicates that the original program content was completely empty, so there are no EVOLVE-BLOCK regions to preserve. The evaluation system is looking for a main.py file that doesn't exist. I need to create a complete working program from scratch that includes the required EVOLVE-BLOCK markers and implements a functional SSD I/O admission control heuristic. Since there's no original content to preserve, I'll create a new program based on the prior example but ensure it's a complete, standalone implementation.
+</DESCRIPTION>
+
+<CODE>
+```python
 from typing import Dict, List
 
 
@@ -101,3 +111,5 @@ def run_experiment(
         "predictions": predictions,
         "labels":      labels,
     }
+```
+</CODE>

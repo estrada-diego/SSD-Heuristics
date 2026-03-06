@@ -187,7 +187,7 @@ def train_model(dataset_path, train_eval_split, layer1_neurons, layer2_neurons, 
     plot_loss(figure_path0, history)
 
 # Evaluation
-    y_pred = (dnn_model.predict(x_test_norm, verbose=0) > 0.2).flatten()
+    y_pred = (dnn_model.predict(x_test_norm, verbose=0) > 0.5).flatten()
     
     stats.append('%Profile rejection : '+str(p_rejection))
     stats.append('%Model rejection   : '+str(y_pred.tolist().count(True)/len(y_pred)))

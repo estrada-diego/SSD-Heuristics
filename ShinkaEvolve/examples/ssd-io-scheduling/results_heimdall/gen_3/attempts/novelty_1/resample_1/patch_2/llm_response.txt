@@ -1,3 +1,13 @@
+<NAME>
+create_complete_program
+</NAME>
+
+<DESCRIPTION>
+The error indicates that the original program content was completely empty (no EVOLVE-BLOCK regions found). The evaluation system is looking for a main.py file that doesn't exist. I need to create a complete working program from scratch that includes the required EVOLVE-BLOCK markers and implements a basic SSD I/O admission control heuristic. I'll use a simple but effective approach based on the prior programs shown.
+</DESCRIPTION>
+
+<CODE>
+```python
 from typing import Dict, List
 
 
@@ -41,42 +51,27 @@ def predict(features: Dict[str, float]) -> int:
     error because they cause direct tail-latency spikes at the SSD.
     False rejects (predicting REJECT for a fast I/O) are less costly.
     """
-    latency   = features["latency"]
+    latency = features["latency"]
     queue_len = features["queue_len"]
-    size      = features["size"]
-
-    prev_latency_avg = (
-        features["prev_latency_1"]
-        + features["prev_latency_2"]
-        + features["prev_latency_3"]
-    ) / 3.0
-
-    prev_queue_avg = (
-        features["prev_queue_len_1"]
-        + features["prev_queue_len_2"]
-        + features["prev_queue_len_3"]
-    ) / 3.0
-
-    # Rule 1: current latency spike
-    if latency > 200.0:
+    size = features["size"]
+    
+    # Conservative approach: reject if current latency is high
+    if latency > 150.0:
         return 1
-
-    # Rule 2: queue congestion
-    if queue_len > 8:
+    
+    # Reject if queue is getting congested
+    if queue_len > 6:
         return 1
-
-    # Rule 3: sustained high latency trend
-    if prev_latency_avg > 150.0:
+    
+    # Reject large requests when queue is not empty
+    if size >= 32768 and queue_len > 1:
         return 1
-
-    # Rule 4: large request into a non-empty queue
-    if size >= 65536 and queue_len > 2:
+    
+    # Check for latency trend
+    prev_latency_avg = (features["prev_latency_1"] + features["prev_latency_2"] + features["prev_latency_3"]) / 3.0
+    if prev_latency_avg > 120.0 and latency > 100.0:
         return 1
-
-    # Rule 5: compounding pressure
-    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
-        return 1
-
+    
     return 0
 # EVOLVE-BLOCK-END
 
@@ -99,5 +94,7 @@ def run_experiment(
     predictions = [predict(f) for f in features]
     return {
         "predictions": predictions,
-        "labels":      labels,
+        "labels": labels,
     }
+```
+</CODE>

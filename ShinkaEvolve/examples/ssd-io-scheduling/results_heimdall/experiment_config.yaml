@@ -1,0 +1,136 @@
+database_config:
+  archive_criteria:
+    combined_score: 1.0
+  archive_selection_strategy: fitness
+  archive_size: 40
+  db_path: results_heimdall/programs.sqlite
+  elite_selection_ratio: 0.3
+  enable_dynamic_islands: false
+  enforce_island_separation: true
+  exploitation_alpha: 1.0
+  exploitation_ratio: 0.2
+  island_elitism: true
+  island_selection_strategy: uniform
+  island_spawn_strategy: initial
+  island_spawn_subtree_size: 1
+  migration_interval: 10
+  migration_rate: 0.1
+  num_archive_inspirations: 4
+  num_beams: 5
+  num_islands: 2
+  num_top_k_inspirations: 2
+  parent_selection_lambda: 10.0
+  parent_selection_strategy: power_law
+  stagnation_threshold: 100
+evolution_config:
+  code_embed_sim_threshold: 0.995
+  embedding_model: amazon.titan-embed-text-v2:0
+  evolve_prompts: false
+  init_program_path: initial.py
+  inspiration_sort_order: ascending
+  job_type: local
+  language: python
+  llm_dynamic_selection: ucb1
+  llm_dynamic_selection_kwargs:
+    exploration_coef: 1.0
+  llm_kwargs:
+    max_tokens: 32768
+    reasoning_efforts:
+    - auto
+    temperatures:
+    - 0.0
+    - 0.5
+    - 1.0
+  llm_models:
+  - gemini-2.5-flash
+  - us.anthropic.claude-sonnet-4-20250514-v1:0
+  - o4-mini
+  - gpt-5-mini
+  - gpt-5-nano
+  max_api_costs: null
+  max_novelty_attempts: 3
+  max_parallel_jobs: 5
+  max_patch_attempts: 3
+  max_patch_resamples: 3
+  meta_llm_kwargs:
+    max_tokens: 16384
+    temperatures:
+    - 0.0
+  meta_llm_models:
+  - us.anthropic.claude-sonnet-4-20250514-v1:0
+  meta_max_recommendations: 5
+  meta_rec_interval: 10
+  novelty_llm_kwargs:
+    max_tokens: 16384
+    temperatures:
+    - 0.0
+  novelty_llm_models:
+  - us.anthropic.claude-sonnet-4-20250514-v1:0
+  num_generations: 100
+  patch_type_probs:
+  - 0.6
+  - 0.3
+  - 0.1
+  patch_types:
+  - diff
+  - full
+  - cross
+  prompt_archive_size: 10
+  prompt_epsilon: 0.1
+  prompt_evo_top_k_programs: 3
+  prompt_evolution_interval: null
+  prompt_llm_kwargs: {}
+  prompt_llm_models: null
+  prompt_patch_type_probs:
+  - 0.7
+  - 0.3
+  prompt_patch_types:
+  - diff
+  - full
+  prompt_percentile_recompute_interval: 20
+  prompt_ucb_exploration_constant: 1.0
+  results_dir: results_heimdall
+  sample_single_meta_rec: true
+  task_sys_msg: "\nYou are a world-class systems programming expert specializing in\
+    \ storage I/O\noptimization and latency-sensitive systems.\n\nYou must optimize\
+    \ a heuristic function for SSD I/O admission control, inspired\nby the Heimdall\
+    \ system (EuroSys '25). The heuristic decides, for each incoming\nI/O request,\
+    \ whether to REJECT it (return 1) or KEEP it (return 0).\n\n## Problem\nSSDs suffer\
+    \ from severe tail latency under high load. An admission control\nheuristic acts\
+    \ as a gatekeeper: it observes lightweight features of each\nincoming I/O and\
+    \ decides in microseconds whether to let it through or reject\nit (e.g. hedge\
+    \ at a higher storage layer). A good heuristic dramatically\nreduces p99/p999\
+    \ latency.\n\n## Input Features (dict keys passed to predict(features))\n- size\
+    \                  : I/O request size in bytes (e.g. 4096, 65536)\n- queue_len\
+    \             : current observed queue depth at decision time\n- prev_queue_len_1/2/3\
+    \  : queue depth at the previous 3 time steps\n- prev_latency_1/2/3    : observed\
+    \ latency (\xB5s) at the previous 3 time steps\n- prev_throughput_1/2/3 : observed\
+    \ throughput at the previous 3 time steps\n- latency               : current observed\
+    \ latency (\xB5s) at decision time\n\n## Output\n- 1 \u2192 REJECT  (predicted\
+    \ slow / high-latency \u2014 block or hedge this request)\n- 0 \u2192 KEEP   \
+    \ (predicted fast / normal \u2014 let it through)\n\n## Fitness function (combined_score,\
+    \ maximise, range [0, 1])\n    combined_score = 0.7 \xD7 weighted_f1  +  0.3 \xD7\
+    \ (1 \u2212 false_admit_rate)\n\n- weighted_f1       : F1 score with false admits\
+    \ penalised 2\xD7 vs false rejects\n- false_admit_rate  : fraction of truly slow\
+    \ I/Os the heuristic admitted (FNR)\n\n## Key asymmetry \u2014 false admits >>\
+    \ false rejects in cost\n- False admit  (predict KEEP, truth REJECT): slow I/O\
+    \ reaches SSD \u2192 tail spike.\n- False reject (predict REJECT, truth KEEP):\
+    \ fast I/O hedged \u2192 minor throughput loss.\nAggressively reducing false admits\
+    \ is the primary lever for improving combined_score.\n\n## Hard constraints on\
+    \ predict()\n- Must return only 0 or 1.\n- Must be stateless and extremely fast\
+    \ (target < 1 \xB5s per call in Python).\n- No file I/O, no model loading, no\
+    \ heavy imports inside predict().\n- Allowed inside predict(): math, builtins,\
+    \ simple arithmetic. No numpy/sklearn.\n\n## Approaches to explore\n- Threshold\
+    \ rules on latency, queue_len, size.\n- Weighted linear scores compared to a threshold.\n\
+    - Trend / slope detection over prev_* time series.\n- Ratios or products of features\
+    \ (e.g. latency \xD7 queue_len).\n- Piecewise / decision-tree-style logic.\n-\
+    \ Exponential moving averages computed inline.\n\nThink outside the box. Diverse\
+    \ strategies are encouraged.\n"
+  use_text_feedback: true
+job_config:
+  conda_env: null
+  eval_program_path: evaluate.py
+  extra_cmd_args: {}
+  time: null
+results_directory: results_heimdall
+timestamp: '2026-03-06T17:00:59.238148'

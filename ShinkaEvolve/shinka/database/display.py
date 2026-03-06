@@ -149,7 +149,7 @@ class DatabaseDisplay:
             island_display,
             status_display,
             score_display,
-            program.metadata.get("patch_name", "[dim]N/A[/dim]")[:30],
+            (str(program.metadata.get("patch_name") or "[dim]N/A[/dim]"))[:30],
             program.metadata.get("patch_type", "[dim]N/A[/dim]"),
             f"{program.complexity:.1f}",
             cost_display,
@@ -617,7 +617,7 @@ class DatabaseDisplay:
                     time_display = f"{time_val:.1f}s"
 
             # Patch name and type
-            patch_name = prog.metadata.get("patch_name", "[dim]N/A[/dim]")[:30]
+            patch_name = (str(prog.metadata.get("patch_name") or "[dim]N/A[/dim]"))[:30]
             patch_type = prog.metadata.get("patch_type", "[dim]N/A[/dim]")
 
             return [

@@ -1,0 +1,6 @@
+defaults:
+  - override /database@_global_: island_large
+  - override /evolution@_global_: large_budget
+  - override /task@_global_: heimdall
+  - override /cluster@_global_: local
+  - _self_

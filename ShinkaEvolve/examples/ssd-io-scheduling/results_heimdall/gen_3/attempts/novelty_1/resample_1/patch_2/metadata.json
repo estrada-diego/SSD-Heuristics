@@ -1,0 +1,14 @@
+{
+  "generation": 3,
+  "novelty_attempt": 1,
+  "resample_attempt": 1,
+  "patch_attempt": 2,
+  "success": false,
+  "num_applied": 0,
+  "patch_name": "create_complete_program",
+  "patch_description": "The error indicates that the original program content was completely empty (no EVOLVE-BLOCK regions found). The evaluation system is looking for a main.py file that doesn't exist. I need to create a complete working program from scratch that includes the required EVOLVE-BLOCK markers and implements a basic SSD I/O admission control heuristic. I'll use a simple but effective approach based on the prior programs shown.",
+  "error_msg": "No EVOLVE-BLOCK regions found in original content",
+  "timestamp": "2026-03-06T17:01:30.384763",
+  "llm_cost": 0.023919000000000003,
+  "llm_model": null
+}

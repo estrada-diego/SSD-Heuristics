@@ -1,0 +1,8 @@
+{
+    "python.defaultInterpreterPath": "/users/diegoes/SSD-Heuristics/.venv/bin/python",
+    "python.analysis.extraPaths": [
+        "/users/diegoes/SSD-Heuristics/.venv/lib/python3.10/site-packages"
+    ],
+    "python.analysis.useImportHeuristic": true,
+    "python.analysis.typeCheckingMode": "off"
+}
