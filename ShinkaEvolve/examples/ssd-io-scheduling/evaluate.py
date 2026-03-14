@@ -178,19 +178,24 @@ def get_experiment_kwargs(run_idx: int, dataset_path: Optional[str]) -> Dict[str
 
 
 
-def validate_fn(result: Any) -> bool:
+def validate_fn(result: Any) -> Tuple[bool, Optional[str]]:
     """
     Sanity-check each run's output before aggregation.
     run_experiment() must return a dict with a valid "predictions" list.
     """
     if not isinstance(result, dict):
-        return False
+        return False, "run_experiment must return a dict"
     preds = result.get("predictions")
     if not isinstance(preds, list) or len(preds) == 0:
-        return False
+        return False, "predictions must be a non-empty list"
     if not all(p in (0, 1) for p in preds):
-        return False
-    return True
+        return False, "predictions must contain only 0/1 values"
+    labels = result.get("labels")
+    if not isinstance(labels, list):
+        return False, "labels must be a list"
+    if len(labels) != len(preds):
+        return False, "predictions and labels must have the same length"
+    return True, None
 
 
 def aggregate_metrics_fn(results: List[Any]) -> Dict[str, Any]:
@@ -213,6 +218,25 @@ def aggregate_metrics_fn(results: List[Any]) -> Dict[str, Any]:
         for k in scalar_keys
     }
 
+    # Aggregate confusion matrix counts across runs for easier diagnostics.
+    tp_total = int(sum(m["tp"] for m in all_metrics))
+    tn_total = int(sum(m["tn"] for m in all_metrics))
+    fp_total = int(sum(m["fp"] for m in all_metrics))
+    fn_total = int(sum(m["fn"] for m in all_metrics))
+    n_total = int(sum(m["n_samples"] for m in all_metrics))
+
+    confusion_matrix = {
+        "tp": tp_total,
+        "tn": tn_total,
+        "fp": fp_total,
+        "fn": fn_total,
+        "n_samples": n_total,
+        # Rows: actual, columns: predicted
+        # [[TN, FP],
+        #  [FN, TP]]
+        "matrix": [[tn_total, fp_total], [fn_total, tp_total]],
+    }
+
     text_feedback = (
         f"Heuristic evaluation over {len(results)} runs:\n"
         f"  combined_score   : {aggregated['combined_score']:.4f}  (target: maximise)\n"
@@ -222,70 +246,15 @@ def aggregate_metrics_fn(results: List[Any]) -> Dict[str, Any]:
         f"  ← slow I/Os wrongly admitted (most costly — minimise this)\n"
         f"  false_reject_rate: {aggregated['false_reject_rate']:.4f}"
         f"  ← fast I/Os wrongly rejected (minor cost)\n"
+        f"  confusion_matrix  : TN={tn_total}, FP={fp_total}, FN={fn_total}, TP={tp_total}\n"
     )
 
     return {
         "combined_score": aggregated["combined_score"],  # required by ShinkaEvolve
-        "public":         aggregated,                    # shown in WebUI
-        "private":        {"per_run_metrics": all_metrics},  # stored, not shown
+        "public":         {**aggregated, "confusion_matrix": confusion_matrix},
+        "private":        {"per_run_metrics": all_metrics, "confusion_matrix": confusion_matrix},
         "text_feedback":  text_feedback,                 # fed back to LLM mutators
     }
-
-
-# --- Constants ---
-LABEL_COLUMN = "reject"
-DEFAULT_DATASET_PATH = "data.csv"   # default if nothing is provided
-NUM_RUNS = 3
-NUM_SAMPLES_PER_RUN = 2000
-BASE_SEED = 42
-
-# --- Dataset loading (cached) ---
-_cached_dataset: Optional[Tuple[List[Dict[str, float]], List[int]]] = None
-_cached_dataset_path: Optional[str] = None
-
-def _resolve_dataset_path(dataset_path: Optional[str]) -> str:
-    """
-    Resolve dataset_path into an absolute path.
-    - If dataset_path is None: default to <dir_of_evaluate.py>/data.csv
-    - If dataset_path is relative: resolve relative to <dir_of_evaluate.py>
-    """
-    here = Path(__file__).resolve().parent
-    p = Path(dataset_path) if dataset_path else Path(DEFAULT_DATASET_PATH)
-    if not p.is_absolute():
-        p = here / p
-    return str(p)
-
-def _load_dataset(dataset_path: Optional[str]) -> Tuple[List[Dict[str, float]], List[int]]:
-    global _cached_dataset, _cached_dataset_path
-
-    resolved = _resolve_dataset_path(dataset_path)
-
-    # If the path changes between runs, invalidate cache.
-    if _cached_dataset is not None and _cached_dataset_path == resolved:
-        return _cached_dataset
-    _cached_dataset = None
-    _cached_dataset_path = resolved
-
-    features, labels = [], []
-    with open(resolved, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            features.append({col: float(row[col]) for col in FEATURE_COLUMNS})
-            labels.append(int(row[LABEL_COLUMN]))
-
-    _cached_dataset = (features, labels)
-    return features, labels
-
-
-# --- ShinkaEvolve hooks ---
-def get_experiment_kwargs(run_idx: int, dataset_path: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Called once per run by run_shinka_eval.
-    """
-    features, labels = _load_dataset(dataset_path)
-    seed = BASE_SEED + run_idx
-    ...
-    return {...}
 
 
 # --- Entry point ---

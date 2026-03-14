@@ -1,12 +1,47 @@
 #!/usr/bin/env python3
+import os
+from pathlib import Path
+
 from shinka.core import EvolutionRunner, EvolutionConfig
 from shinka.database import DatabaseConfig
 from shinka.launch import LocalJobConfig
 
-job_config = LocalJobConfig(eval_program_path="evaluate.py")
+HERE = Path(__file__).resolve().parent
+RESULTS = HERE / "results_heimdall"
+RESULTS.mkdir(exist_ok=True)
+
+dataset_path_env = os.getenv("SHINKA_DATASET_PATH")
+default_dataset_path = HERE / "data.csv"
+dataset_path = dataset_path_env or (
+    str(default_dataset_path) if default_dataset_path.exists() else None
+)
+
+if not dataset_path:
+    raise FileNotFoundError(
+        "Dataset not found. Set SHINKA_DATASET_PATH to an existing CSV path or "
+        f"place data.csv at {default_dataset_path}"
+    )
+
+if not Path(dataset_path).exists():
+    raise FileNotFoundError(f"Dataset path does not exist: {dataset_path}")
+
+extra_cmd_args = {"dataset_path": dataset_path}
+
+llm_models = ["us.anthropic.claude-sonnet-4-20250514-v1:0"]
+if os.getenv("GEMINI_API_KEY"):
+    llm_models.insert(0, "gemini-2.5-flash")
+if os.getenv("OPENAI_API_KEY"):
+    llm_models.extend(["o4-mini", "gpt-5-mini", "gpt-5-nano"])
+
+num_generations = int(os.getenv("SHINKA_NUM_GENERATIONS", "100"))
+
+job_config = LocalJobConfig(
+    eval_program_path=str(HERE / "evaluate.py"),
+    extra_cmd_args=extra_cmd_args,
+)
 
 db_config = DatabaseConfig(
-    db_path="evolution_db.sqlite",
+    db_path=str(RESULTS / "programs.sqlite"),
     num_islands=2,
     archive_size=40,
     # Inspiration
@@ -82,19 +117,13 @@ evo_config = EvolutionConfig(
     task_sys_msg=search_task_sys_msg,
     patch_types=["diff", "full", "cross"],
     patch_type_probs=[0.6, 0.3, 0.1],
-    num_generations=100,
+    num_generations=num_generations,
     max_parallel_jobs=5,
     max_patch_resamples=3,
     max_patch_attempts=3,
     job_type="local",
     language="python",
-    llm_models=[
-        "gemini-2.5-flash",
-        "us.anthropic.claude-sonnet-4-20250514-v1:0",
-        "o4-mini",
-        "gpt-5-mini",
-        "gpt-5-nano",
-    ],
+    llm_models=llm_models,
     llm_kwargs=dict(
         temperatures=[0.0, 0.5, 1.0],
         reasoning_efforts=["auto"],
@@ -110,8 +139,8 @@ evo_config = EvolutionConfig(
     llm_dynamic_selection="ucb1",
     llm_dynamic_selection_kwargs=dict(exploration_coef=1.0),
     use_text_feedback=True,   # passes text_feedback from aggregate_metrics_fn to LLMs
-    init_program_path="initial.py",
-    results_dir="results_heimdall",
+    init_program_path=str(HERE / "initial.py"),
+    results_dir=str(RESULTS),
 )
 
 
