@@ -3,7 +3,7 @@ database_config:
     combined_score: 1.0
   archive_selection_strategy: fitness
   archive_size: 40
-  db_path: results_heimdall/programs.sqlite
+  db_path: /users/diegoes/SSD-Heuristics/ShinkaEvolve/examples/ssd-io-scheduling/results_heimdall/programs.sqlite
   elite_selection_ratio: 0.3
   enable_dynamic_islands: false
   enforce_island_separation: true
@@ -26,7 +26,7 @@ evolution_config:
   code_embed_sim_threshold: 0.995
   embedding_model: amazon.titan-embed-text-v2:0
   evolve_prompts: false
-  init_program_path: initial.py
+  init_program_path: /users/diegoes/SSD-Heuristics/ShinkaEvolve/examples/ssd-io-scheduling/initial.py
   inspiration_sort_order: ascending
   job_type: local
   language: python
@@ -42,11 +42,7 @@ evolution_config:
     - 0.5
     - 1.0
   llm_models:
-  - gemini-2.5-flash
   - us.anthropic.claude-sonnet-4-20250514-v1:0
-  - o4-mini
-  - gpt-5-mini
-  - gpt-5-nano
   max_api_costs: null
   max_novelty_attempts: 3
   max_parallel_jobs: 5
@@ -66,7 +62,7 @@ evolution_config:
     - 0.0
   novelty_llm_models:
   - us.anthropic.claude-sonnet-4-20250514-v1:0
-  num_generations: 100
+  num_generations: 10
   patch_type_probs:
   - 0.6
   - 0.3
@@ -89,7 +85,7 @@ evolution_config:
   - full
   prompt_percentile_recompute_interval: 20
   prompt_ucb_exploration_constant: 1.0
-  results_dir: results_heimdall
+  results_dir: /users/diegoes/SSD-Heuristics/ShinkaEvolve/examples/ssd-io-scheduling/results_heimdall
   sample_single_meta_rec: true
   task_sys_msg: "\nYou are a world-class systems programming expert specializing in\
     \ storage I/O\noptimization and latency-sensitive systems.\n\nYou must optimize\
@@ -129,8 +125,11 @@ evolution_config:
   use_text_feedback: true
 job_config:
   conda_env: null
-  eval_program_path: evaluate.py
-  extra_cmd_args: {}
+  eval_program_path: /users/diegoes/SSD-Heuristics/ShinkaEvolve/examples/ssd-io-scheduling/evaluate.py
+  extra_cmd_args:
+    dataset_path: /users/diegoes/SSD-Heuristics/ds_pipeline/data/dataset/nvme0n1/msr.cut.per_10k.most_thpt_rand_iops.1006/profile_v1.feat_v6.readonly.dataset
+    split_section: train
+    train_eval_split: '80_20'
   time: null
-results_directory: results_heimdall
-timestamp: '2026-03-06T17:00:59.238148'
+results_directory: /users/diegoes/SSD-Heuristics/ShinkaEvolve/examples/ssd-io-scheduling/results_heimdall
+timestamp: '2026-03-16T20:55:55.825672'

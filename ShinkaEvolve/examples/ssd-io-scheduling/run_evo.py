@@ -34,10 +34,16 @@ if os.getenv("OPENAI_API_KEY"):
     llm_models.extend(["o4-mini", "gpt-5-mini", "gpt-5-nano"])
 
 num_generations = int(os.getenv("SHINKA_NUM_GENERATIONS", "100"))
+train_eval_split = os.getenv("SHINKA_TRAIN_EVAL_SPLIT", "100_0")
+split_section = os.getenv("SHINKA_SPLIT_SECTION", "train")
 
 job_config = LocalJobConfig(
     eval_program_path=str(HERE / "evaluate.py"),
-    extra_cmd_args=extra_cmd_args,
+    extra_cmd_args={
+        **extra_cmd_args,
+        "train_eval_split": train_eval_split,
+        "split_section": split_section,
+    },
 )
 
 db_config = DatabaseConfig(

@@ -1,0 +1,14 @@
+{
+  "generation": 4,
+  "novelty_attempt": 1,
+  "resample_attempt": 1,
+  "patch_attempt": 1,
+  "success": true,
+  "num_applied": 1,
+  "patch_name": "exponential_decay_momentum_predictor",
+  "patch_description": "This approach uses exponential decay weighted moving averages with momentum-based trend detection and multi-scale temporal analysis. Instead of simple averaging or threshold rules, it computes exponentially weighted features that give more importance to recent observations while maintaining memory of past behavior. The algorithm uses momentum indicators (rate of change in trends) and combines multiple time scales to detect deteriorating I/O conditions early. It also employs adaptive thresholds that scale based on the current system state, making it more sensitive to relative changes rather than absolute values.",
+  "error_msg": null,
+  "timestamp": "2026-03-16T20:50:56.114457",
+  "llm_cost": 0.040773000000000004,
+  "llm_model": null
+}

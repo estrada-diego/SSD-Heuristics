@@ -1,0 +1,160 @@
+from typing import Dict, List
+
+
+# ---------------------------------------------------------------------------
+# Feature columns — must match evaluate.py's FEATURE_COLUMNS.
+# ---------------------------------------------------------------------------
+FEATURE_COLUMNS = [
+    "size",
+    "queue_len",
+    "prev_queue_len_1",
+    "prev_queue_len_2",
+    "prev_queue_len_3",
+    "prev_latency_1",
+    "prev_latency_2",
+    "prev_latency_3",
+    "prev_throughput_1",
+    "prev_throughput_2",
+    "prev_throughput_3",
+    "latency",
+]
+
+
+# EVOLVE-BLOCK-START
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    # Exponentially weighted historical averages (recent data more important)
+    prev_latency_weighted = (
+        0.5 * features["prev_latency_1"] +
+        0.3 * features["prev_latency_2"] +
+        0.2 * features["prev_latency_3"]
+    )
+
+    prev_queue_weighted = (
+        0.5 * features["prev_queue_len_1"] +
+        0.3 * features["prev_queue_len_2"] +
+        0.2 * features["prev_queue_len_3"]
+    )
+
+    # Throughput trend (declining throughput indicates congestion)
+    throughput_trend = (
+        features["prev_throughput_1"] - features["prev_throughput_3"]
+    ) if features["prev_throughput_3"] > 0 else 0
+
+    # Initialize risk score
+    risk_score = 0.0
+
+    # Current latency component (more aggressive thresholds)
+    if latency > 120.0:
+        risk_score += 4.0
+    elif latency > 80.0:
+        risk_score += 2.5
+    elif latency > 60.0:
+        risk_score += 1.5
+    elif latency > 40.0:
+        risk_score += 0.8
+
+    # Queue depth component (more aggressive)
+    if queue_len > 5:
+        risk_score += 3.5
+    elif queue_len > 3:
+        risk_score += 2.0
+    elif queue_len > 1:
+        risk_score += 1.0
+    elif queue_len > 0:
+        risk_score += 0.5
+
+    # Historical pressure component
+    if prev_latency_weighted > 100.0:
+        risk_score += 2.5
+    elif prev_latency_weighted > 70.0:
+        risk_score += 1.5
+    elif prev_latency_weighted > 50.0:
+        risk_score += 0.8
+
+    if prev_queue_weighted > 4:
+        risk_score += 2.0
+    elif prev_queue_weighted > 2:
+        risk_score += 1.0
+    elif prev_queue_weighted > 1:
+        risk_score += 0.5
+
+    # Size penalty (large requests are inherently riskier)
+    if size >= 65536:
+        risk_score += 2.0
+    elif size >= 32768:
+        risk_score += 1.2
+    elif size >= 16384:
+        risk_score += 0.6
+
+    # Throughput decline penalty
+    if throughput_trend < -1000:
+        risk_score += 1.5
+    elif throughput_trend < -500:
+        risk_score += 0.8
+
+    # Interaction effects
+    # High latency + any queue depth
+    if latency > 70.0 and queue_len > 0:
+        risk_score += 1.5
+
+    # Large request + any historical pressure
+    if size >= 32768 and prev_queue_weighted > 1:
+        risk_score += 1.0
+
+    # Queue growth pattern
+    queue_growth = queue_len - prev_queue_weighted
+    if queue_growth > 1:
+        risk_score += queue_growth * 0.8
+
+    # Sustained pressure (queue + latency together)
+    if prev_queue_weighted > 2 and prev_latency_weighted > 60:
+        risk_score += 1.5
+
+    # Be much more aggressive - lower threshold to catch more slow I/Os
+    return 1 if risk_score >= 2.0 else 0
+# EVOLVE-BLOCK-END
+
+
+# ---------------------------------------------------------------------------
+# run_experiment — called by evaluate.py via run_shinka_eval.
+# Must accept the kwargs produced by get_experiment_kwargs().
+# Must return a dict with at least "predictions" and "labels".
+# ---------------------------------------------------------------------------
+
+def run_experiment(
+    features: List[Dict[str, float]],
+    labels: List[int],
+    seed: int = 42,
+) -> Dict:
+    """
+    Run the heuristic over the provided feature list and return predictions.
+    The evaluator compares predictions against labels to compute metrics.
+    """
+    predictions = [predict(f) for f in features]
+    return {
+        "predictions": predictions,
+        "labels":      labels,
+    }

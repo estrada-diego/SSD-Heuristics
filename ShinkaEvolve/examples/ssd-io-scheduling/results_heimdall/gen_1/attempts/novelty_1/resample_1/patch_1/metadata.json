@@ -3,10 +3,12 @@
   "novelty_attempt": 1,
   "resample_attempt": 1,
   "patch_attempt": 1,
-  "success": false,
-  "num_applied": 0,
-  "patch_name": null,
-  "patch_description": null,
-  "error_msg": "LLM response content was None.",
-  "timestamp": "2026-03-06T17:01:09.591676"
+  "success": true,
+  "num_applied": 1,
+  "patch_name": "adaptive_pressure_scoring",
+  "patch_description": "This approach uses a fundamentally different algorithmic strategy based on adaptive pressure scoring rather than fixed threshold rules. Instead of hard-coded thresholds, it computes a dynamic \"pressure score\" that combines multiple signals with adaptive weights based on current system state. The key innovation is using exponential decay functions and relative change detection to capture system dynamics more effectively. It also employs a multi-stage decision process where different pressure levels trigger different rejection strategies, making it more sensitive to emerging congestion patterns while being less prone to false admits during transient spikes.",
+  "error_msg": null,
+  "timestamp": "2026-03-16T20:49:43.636838",
+  "llm_cost": 0.033564000000000004,
+  "llm_model": null
 }

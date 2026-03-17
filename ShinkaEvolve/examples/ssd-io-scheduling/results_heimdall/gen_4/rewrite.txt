@@ -1,0 +1,151 @@
+from typing import Dict, List
+
+
+# ---------------------------------------------------------------------------
+# Feature columns — must match evaluate.py's FEATURE_COLUMNS.
+# ---------------------------------------------------------------------------
+FEATURE_COLUMNS = [
+    "size",
+    "queue_len",
+    "prev_queue_len_1",
+    "prev_queue_len_2",
+    "prev_queue_len_3",
+    "prev_latency_1",
+    "prev_latency_2",
+    "prev_latency_3",
+    "prev_throughput_1",
+    "prev_throughput_2",
+    "prev_throughput_3",
+    "latency",
+]
+
+
+# EVOLVE-BLOCK-START
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control using exponential decay and momentum.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    # Extract current state
+    latency = features["latency"]
+    queue_len = features["queue_len"]
+    size = features["size"]
+    
+    # Extract historical data
+    prev_latencies = [features["prev_latency_1"], features["prev_latency_2"], features["prev_latency_3"]]
+    prev_queues = [features["prev_queue_len_1"], features["prev_queue_len_2"], features["prev_queue_len_3"]]
+    prev_throughputs = [features["prev_throughput_1"], features["prev_throughput_2"], features["prev_throughput_3"]]
+    
+    # Exponential decay weights (more recent = higher weight)
+    weights = [0.5, 0.3, 0.2]  # sum = 1.0
+    
+    # Compute exponentially weighted averages
+    ewa_latency = sum(w * lat for w, lat in zip(weights, prev_latencies))
+    ewa_queue = sum(w * q for w, q in zip(weights, prev_queues))
+    ewa_throughput = sum(w * tp for w, tp in zip(weights, prev_throughputs))
+    
+    # Compute momentum (rate of change)
+    latency_momentum = prev_latencies[0] - prev_latencies[2]  # recent - old
+    queue_momentum = prev_queues[0] - prev_queues[2]
+    throughput_momentum = prev_throughputs[2] - prev_throughputs[0]  # decreasing throughput is bad
+    
+    # Multi-scale analysis - short term vs medium term trends
+    short_term_latency = (prev_latencies[0] * 0.7 + prev_latencies[1] * 0.3)
+    medium_term_latency = ewa_latency
+    latency_acceleration = short_term_latency - medium_term_latency
+    
+    # Adaptive baseline computation
+    baseline_latency = max(50.0, ewa_latency * 0.8)  # Dynamic baseline
+    baseline_queue = max(2.0, ewa_queue * 0.9)
+    
+    # Risk factors with exponential scaling
+    risk_score = 0.0
+    
+    # Current latency spike (exponential penalty)
+    if latency > baseline_latency:
+        latency_ratio = latency / baseline_latency
+        risk_score += (latency_ratio - 1.0) ** 1.8 * 4.0
+    
+    # Queue depth pressure with exponential growth
+    if queue_len > baseline_queue:
+        queue_ratio = queue_len / baseline_queue
+        risk_score += (queue_ratio - 1.0) ** 2.0 * 3.0
+    
+    # Momentum-based trend detection
+    if latency_momentum > 20.0:  # Latency increasing
+        risk_score += (latency_momentum / 50.0) ** 1.5 * 2.5
+    
+    if queue_momentum > 1.0:  # Queue growing
+        risk_score += (queue_momentum / 3.0) ** 1.2 * 2.0
+    
+    if throughput_momentum > 1000.0:  # Throughput dropping significantly
+        risk_score += (throughput_momentum / 2000.0) * 1.8
+    
+    # Acceleration penalty (latency trend is accelerating)
+    if latency_acceleration > 10.0:
+        risk_score += (latency_acceleration / 30.0) ** 1.3 * 1.5
+    
+    # Size-based risk with adaptive threshold
+    size_threshold = 32768
+    if ewa_queue > 3.0:  # Lower size threshold when system is under pressure
+        size_threshold = 16384
+    if size >= size_threshold:
+        size_factor = size / 65536.0
+        risk_score += size_factor ** 1.4 * 1.2
+    
+    # Compound risk interactions
+    # High latency + growing queue = dangerous
+    if latency > baseline_latency * 1.3 and queue_momentum > 0.5:
+        risk_score += 2.0
+    
+    # Large request into deteriorating system
+    if size >= 32768 and (latency_momentum > 10 or queue_momentum > 1):
+        risk_score += 1.8
+    
+    # System saturation indicator
+    saturation_score = (latency / 300.0) + (queue_len / 15.0) + (1.0 - min(ewa_throughput / 10000.0, 1.0))
+    if saturation_score > 1.5:
+        risk_score += saturation_score * 1.2
+    
+    # Very aggressive threshold to minimize false admits
+    threshold = 1.8
+    
+    return 1 if risk_score > threshold else 0
+# EVOLVE-BLOCK-END
+
+
+# ---------------------------------------------------------------------------
+# run_experiment — called by evaluate.py via run_shinka_eval.
+# Must accept the kwargs produced by get_experiment_kwargs().
+# Must return a dict with at least "predictions" and "labels".
+# ---------------------------------------------------------------------------
+
+def run_experiment(
+    features: List[Dict[str, float]],
+    labels: List[int],
+    seed: int = 42,
+) -> Dict:
+    """
+    Run the heuristic over the provided feature list and return predictions.
+    The evaluator compares predictions against labels to compute metrics.
+    """
+    predictions = [predict(f) for f in features]
+    return {
+        "predictions": predictions,
+        "labels":      labels,
+    }

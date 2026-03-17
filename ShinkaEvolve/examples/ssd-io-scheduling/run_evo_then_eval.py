@@ -51,6 +51,8 @@ def main() -> None:
     env = os.environ.copy()
     env["SHINKA_DATASET_PATH"] = dataset_path
     env["SHINKA_NUM_GENERATIONS"] = str(args.num_generations)
+    env["SHINKA_TRAIN_EVAL_SPLIT"] = args.split_tag
+    env["SHINKA_SPLIT_SECTION"] = "train"
 
     evo_cmd = [sys.executable, str(here / "run_evo.py")]
     print("Running evolution:", " ".join(evo_cmd))
@@ -65,6 +67,8 @@ def main() -> None:
         dataset_path,
         "--split_tag",
         args.split_tag,
+        "--split_section",
+        "eval",
         "--output_root",
         args.output_root,
     ]

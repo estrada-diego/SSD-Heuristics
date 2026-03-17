@@ -194,11 +194,32 @@ class EvolutionRunner:
             if self.verbose:
                 logger.info(f"Saved evaluate_str to {evaluate_path}")
 
-        # Check if we are resuming a run
+        # Check if we are resuming a run. An empty/uninitialized database must
+        # not count as a resumable run or generation 0 will be skipped.
         resuming_run = False
         db_path = Path(f"{self.results_dir}/programs.sqlite")
         if self.evo_config.results_dir is not None and db_path.exists():
-            resuming_run = True
+            try:
+                import sqlite3
+
+                conn = sqlite3.connect(str(db_path))
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='programs'"
+                )
+                has_programs_table = cursor.fetchone() is not None
+                has_program_rows = False
+                if has_programs_table:
+                    cursor.execute("SELECT COUNT(*) AS count FROM programs")
+                    row = cursor.fetchone()
+                    has_program_rows = bool(row and row["count"] > 0)
+                conn.close()
+                resuming_run = has_programs_table and has_program_rows
+            except Exception:
+                # Fall back to fresh-run behavior if resume state can't be
+                # established reliably.
+                resuming_run = False
 
         if self.evo_config.num_generations is None:
             assert self.evo_config.max_api_costs is not None, (

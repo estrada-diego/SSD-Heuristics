@@ -1,0 +1,149 @@
+Looking at the performance metrics, I can see the main issue: the heuristic has a very high false admit rate (89.6%) and very low recall (10%). This means it's being too conservative and letting through many slow I/Os that should be rejected, while only catching a small fraction of the truly slow ones.
+
+The current approach uses simple threshold rules, but I think we need a more sophisticated scoring system that can better distinguish between fast and slow I/Os by considering multiple factors simultaneously.
+
+<NAME>
+weighted_risk_scoring
+</NAME>
+
+<DESCRIPTION>
+Replace the simple threshold-based rules with a weighted risk scoring system. Instead of having independent rules that immediately return 1, I'll compute a risk score that combines multiple factors with different weights. This allows for more nuanced decision-making where multiple moderate risk factors can accumulate to trigger a rejection, while also being more aggressive about rejecting requests when we see strong indicators of slowness.
+
+Key improvements:
+1. Use a continuous risk score instead of binary rules
+2. Weight current conditions more heavily than historical averages
+3. Add trend detection by comparing current vs previous values
+4. Include interaction terms (e.g., large requests are riskier when queue is growing)
+5. Lower the rejection threshold to be more aggressive about preventing false admits
+</DESCRIPTION>
+
+<DIFF>
+<<<<<<< SEARCH
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
+
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Rule 1: current latency spike
+    if latency > 200.0:
+        return 1
+
+    # Rule 2: queue congestion
+    if queue_len > 8:
+        return 1
+
+    # Rule 3: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
+
+    # Rule 4: large request into a non-empty queue
+    if size >= 65536 and queue_len > 2:
+        return 1
+
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    return 0
+=======
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
+
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Compute risk score (higher = more likely to be slow)
+    risk_score = 0.0
+
+    # Current latency factor (heavily weighted)
+    risk_score += max(0, (latency - 50.0) / 100.0) * 3.0
+
+    # Queue depth factor (exponential penalty for high queue)
+    if queue_len > 0:
+        risk_score += (queue_len / 10.0) ** 1.5 * 2.0
+
+    # Historical latency trend
+    risk_score += max(0, (prev_latency_avg - 80.0) / 120.0) * 1.5
+
+    # Size penalty (large requests are riskier)
+    if size >= 32768:
+        risk_score += (size / 65536.0) * 1.0
+
+    # Queue growth trend (current vs recent average)
+    queue_trend = queue_len - prev_queue_avg
+    if queue_trend > 0:
+        risk_score += queue_trend / 5.0 * 1.2
+
+    # Interaction: large requests into growing queues
+    if size >= 32768 and queue_trend > 1:
+        risk_score += 1.0
+
+    # Interaction: sustained pressure (high queue + high latency)
+    if prev_queue_avg > 4 and prev_latency_avg > 100:
+        risk_score += 1.5
+
+    # Be aggressive: reject if risk score exceeds threshold
+    return 1 if risk_score > 2.5 else 0
+>>>>>>> REPLACE
+</DIFF>

@@ -1,0 +1,14 @@
+{
+  "generation": 9,
+  "novelty_attempt": 1,
+  "resample_attempt": 1,
+  "patch_attempt": 1,
+  "success": true,
+  "num_applied": 1,
+  "patch_name": "aggressive_multi_signal_detector",
+  "patch_description": "The current program has a very high false admit rate (84.48%), meaning it's letting through too many slow I/Os that should be rejected. Looking at the prior programs, the second one achieved a much better combined score (0.45) by being more aggressive in rejection.\n\nMy approach combines the best aspects: I'm implementing a multi-signal detection system that's much more aggressive about rejecting requests. The key insights are:\n\n1. Lower all thresholds significantly - the current program is too conservative\n2. Use multiplicative pressure scoring instead of additive to amplify danger signals\n3. Implement cascading rejection rules where multiple weak signals combine to trigger rejection\n4. Add size-aware rejection that gets progressively stricter for larger requests\n5. Use trend detection to catch deteriorating conditions early\n6. Apply compound conditions that reject when multiple moderate signals align\n\nThe strategy prioritizes minimizing false admits over false rejects, which is exactly what the fitness function rewards (false admits are penalized 2x more than false rejects in the weighted F1 score).",
+  "error_msg": null,
+  "timestamp": "2026-03-16T20:53:28.249601",
+  "llm_cost": 0.049572000000000005,
+  "llm_model": null
+}

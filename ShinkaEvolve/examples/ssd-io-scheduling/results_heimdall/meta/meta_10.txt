@@ -1,0 +1,150 @@
+# INDIVIDUAL PROGRAM SUMMARIES
+
+The following are summaries of individual programs evaluated since the last meta update:
+
+**Program Name: Rule-Based SSD I/O Admission Control Heuristic**
+
+- **Implementation**: Uses five sequential rules checking current latency (>200), queue congestion (>8), sustained high latency trends (avg >150), large requests in non-empty queues (≥65536 bytes with queue >2), and compounding pressure conditions. Calculates rolling averages of previous latency and queue length metrics to inform decision making.
+
+- **Performance**: Combined score of 0.10 with very high false admit rate (89.6%) but extremely low false reject rate (0.3%), showing overly conservative rejection behavior.
+
+- **Feedback**: The heuristic is too restrictive, rejecting only 2.25% of requests and missing 89.6% of truly slow I/Os that should be rejected. While it avoids wrongly rejecting fast I/Os, it fails to identify most problematic requests, resulting in poor overall performance for tail-latency control.
+**Program Identifier:** Generation 0 - Patch Name initial_program - Correct Program: True
+
+**Program Name: Adaptive Pressure Scoring with Multi-Stage Decision Thresholds**
+
+- **Implementation**: Uses exponentially weighted moving averages (weights: 0.5, 0.3, 0.2) to compute historical pressure from latency, queue length, and throughput trends, then combines current state (40%), historical (30%), trend (20%), and size penalty (10%) components into a composite pressure score. Employs five-stage decision logic with adaptive thresholds ranging from 0.3 to 0.8, plus emergency conditions for extreme latency (>300) or queue length (>12).
+
+- **Performance**: Achieved combined score of 0.15 with high precision (0.78) but very low recall (0.16), resulting in 84% false admit rate.
+
+- **Feedback**: The sophisticated pressure scoring and multi-stage thresholds are too conservative, correctly rejecting most slow I/Os that are caught but missing 84% of them, indicating the thresholds need significant adjustment to be more aggressive in rejection decisions.
+**Program Identifier:** Generation 1 - Patch Name adaptive_pressure_scoring - Correct Program: True
+
+**Program Name: Risk-Based SSD I/O Admission Control with Multi-Factor Scoring**
+
+- **Implementation**: Uses a weighted risk scoring system that combines current latency (3.0x weight), exponential queue depth penalty, historical latency trends, request size penalties, and interaction effects between large requests and growing queues. Applies an aggressive rejection threshold of 2.5 to minimize false admits.
+
+- **Performance**: Combined score of 0.15 with very low false reject rate (0.37%) but high false admit rate (85.17%), achieving 90% precision but only 15% recall.
+
+- **Feedback**: The aggressive threshold successfully minimizes wrongly rejecting fast I/Os but fails to catch most slow I/Os, resulting in poor recall and high false admits which are the most costly errors in this system. The risk scoring approach shows promise but needs threshold tuning to better balance precision and recall.
+**Program Identifier:** Generation 2 - Patch Name weighted_risk_scoring - Correct Program: True
+
+**Program Name: Multi-Factor Risk Scoring SSD I/O Admission Control**
+
+- **Implementation**: Uses a weighted risk scoring system that combines current conditions (latency >150ms, queue length >6), historical averages of previous 3 measurements, latency trend analysis, and request size factors with multiplicative scaling for large requests (≥32KB). Applies compounding penalties when multiple risk factors are present simultaneously and uses an aggressive threshold of 3.5 to classify high-risk I/O operations.
+
+- **Performance**: Combined score of 0.14 with 82% accuracy but critically high 86% false admit rate, meaning most slow I/Os are incorrectly allowed through.
+
+- **Feedback**: The heuristic is too conservative in rejecting requests, achieving very low false reject rate (1.4%) but failing at its primary objective of preventing slow I/Os from reaching the SSD. The risk scoring thresholds need significant adjustment to better identify and reject truly problematic I/O operations.
+**Program Identifier:** Generation 3 - Patch Name weighted_scoring_system - Correct Program: True
+
+**Program Name: Exponential Decay Momentum-Based SSD I/O Admission Control**
+- **Implementation**: Uses exponential weighted averages with decay weights [0.5, 0.3, 0.2] for historical data, computes momentum and acceleration trends, applies exponential risk scaling with compound interaction penalties, and uses an aggressive threshold of 1.8 to minimize false admits.
+- **Performance**: Combined score of 0.30 with weighted F1 of 0.27, achieving 70% accuracy but suffering from high false admit rate of 61%.
+- **Feedback**: The aggressive threshold and complex risk modeling successfully reduces false rejects (22%) but fails to adequately prevent slow I/Os from being admitted, indicating the risk scoring may be too lenient despite the low threshold.
+**Program Identifier:** Generation 4 - Patch Name exponential_decay_momentum_predictor - Correct Program: True
+
+**Program Name: Aggressive Risk-Based SSD I/O Admission Control Heuristic**
+
+- **Implementation**: Uses a multi-factor risk scoring system with exponentially weighted historical averages, combining current latency/queue depth with historical pressure indicators, request size penalties, and interaction effects between factors. Features aggressive thresholds (risk_score >= 2.0) and emphasizes recent data more heavily in weighted averages.
+
+- **Performance**: Combined score of 0.60 with perfect recall (1.00) but low precision (0.28), achieving near-zero false admit rate (0.0017) at the cost of high false reject rate (0.61).
+
+- **Feedback**: The aggressive threshold successfully minimizes costly false admits (slow I/Os wrongly admitted) but creates excessive false rejects, indicating the heuristic is overly conservative and could benefit from threshold tuning to better balance precision and recall.
+**Program Identifier:** Generation 5 - Patch Name aggressive_weighted_scoring_system - Correct Program: True
+
+**Program Name: Layered Cascading Rejection Heuristic for SSD I/O Control**
+
+- **Implementation**: Uses a 6-layer cascading decision system with aggressive early rejection thresholds (latency >150, queue >6), historical trend analysis, and compound pressure scoring that combines latency, queue depth, and request size factors. Implements a danger signal accumulation approach where multiple moderate risk indicators (≥2 signals) trigger rejection.
+
+- **Performance**: Combined score of 0.45 with 78% accuracy, achieving the design goal of minimizing false admits (45% false admit rate vs 16% false reject rate).
+
+- **Feedback**: The aggressive rejection strategy successfully prioritizes avoiding slow I/O admission over rejecting fast I/Os, though the relatively high false admit rate suggests the thresholds could be even more conservative. The layered approach effectively captures multiple risk patterns but may benefit from tighter compound pressure thresholds.
+**Program Identifier:** Generation 6 - Patch Name aggressive_early_rejection - Correct Program: True
+
+**Program Name: Multi-Stage Risk Scoring SSD I/O Admission Control**
+
+- **Implementation**: Uses a two-stage approach with hard rejection rules for obvious slow I/Os (latency >200ms, queue >8) followed by continuous risk scoring that combines current metrics, exponentially weighted historical averages, and interaction effects with dynamic threshold adaptation based on system state.
+
+- **Performance**: Combined score of 0.16 with very low false reject rate (0.04) but high false admit rate (0.83), achieving 81% accuracy but only 17% recall.
+
+- **Feedback**: The conservative hard rejection rules successfully minimize false rejects but the risk scoring system is too permissive, allowing too many slow I/Os through and resulting in poor recall despite the multi-layered approach with weighted historical data and adaptive thresholds.
+**Program Identifier:** Generation 7 - Patch Name adaptive_hybrid_risk_scoring - Correct Program: True
+
+**Program Name: Cascading Multi-Filter SSD I/O Admission Control Heuristic**
+
+- **Implementation**: Uses six sequential filters with exponentially weighted averages and trend analysis, including immediate danger detection, system saturation monitoring, compound risk assessment using geometric means, and adaptive thresholds that become more aggressive under system stress. Each filter can independently trigger rejection based on different risk patterns like latency acceleration, queue momentum, and throughput decline.
+
+- **Performance**: Combined score of 0.48 with 36% false admit rate and 64% recall, showing moderate effectiveness at identifying slow I/O operations.
+
+- **Feedback**: The cascading approach successfully captures multiple risk dimensions but suffers from high false admit rate (36%), indicating the filters may not be aggressive enough in rejecting potentially problematic I/O requests. The system shows good recall but needs better precision to minimize costly false admissions.
+**Program Identifier:** Generation 8 - Patch Name adaptive_cascade_filter - Correct Program: True
+
+**Program Name: Aggressive Multi-Layer SSD I/O Admission Control Heuristic**
+
+- **Implementation**: Uses 8 cascading rejection layers with multiplicative pressure scoring, combining immediate danger thresholds (latency >120μs, queue >5), historical trend analysis, size-progressive rejection rules, and compound scoring to aggressively block slow I/O requests. Features very low thresholds compared to typical heuristics and combines weak signals through danger signal counting and multiplicative pressure factors.
+
+- **Performance**: Combined score of 0.54 with perfect recall (1.00) but very low precision (0.21), achieving zero false admits at the cost of 89% false reject rate.
+
+- **Feedback**: The extremely aggressive approach successfully eliminates all costly false admits (slow I/Os wrongly admitted) but creates excessive false rejections of fast I/Os. The multi-layer cascade design with multiplicative scoring effectively identifies risky conditions but may be overly conservative for practical deployment.
+**Program Identifier:** Generation 9 - Patch Name aggressive_multi_signal_detector - Correct Program: True
+
+# GLOBAL INSIGHTS SCRATCHPAD
+
+The following are global insights about optimization approaches and their effectiveness:
+
+## Successful Algorithmic Patterns
+
+- **Aggressive threshold strategies with perfect recall**: The current best program (Generation 5 - Aggressive Risk-Based, score 0.60) and Generation 9 (Aggressive Multi-Layer, score 0.54) both achieved perfect recall (1.00) by using very low rejection thresholds (2.0 and aggressive multi-layer respectively), successfully eliminating the most costly false admits (0.0017 and 0.00 false admit rates).
+
+- **Multi-factor risk scoring with exponential weighting**: The best performing programs consistently used exponentially weighted historical averages (0.5, 0.3, 0.2 weights) combined with current state metrics. The current best program combines latency thresholds, queue depth penalties, historical pressure indicators, and interaction effects into a composite risk score.
+
+- **Cascading rejection systems**: Generation 6 (Layered Cascading, score 0.45) and Generation 8 (Cascading Multi-Filter, score 0.48) showed that multi-layer decision systems can effectively capture different risk patterns, with the cascading approach in Generation 6 achieving better balance between false admits (45%) and false rejects (16%).
+
+- **Interaction effect modeling**: Programs that modeled compound conditions (high latency + queue depth, large requests + historical pressure) consistently outperformed simpler approaches, with the current best program incorporating multiple interaction terms that boost risk scores when multiple factors align.
+
+## Ineffective Approaches
+
+- **Conservative thresholds with complex scoring**: Early generations (1-4) with sophisticated pressure scoring but conservative thresholds achieved poor combined scores (0.10-0.16) due to extremely high false admit rates (83-89%), failing at the primary objective of preventing slow I/Os from reaching the SSD.
+
+- **Over-engineered multi-stage systems without aggression**: Generation 1's adaptive pressure scoring (score 0.15) and Generation 7's adaptive hybrid approach (score 0.16) used complex multi-stage logic but failed due to overly permissive thresholds, resulting in 84% and 83% false admit rates respectively.
+
+- **Balanced precision-recall optimization**: Programs attempting to balance precision and recall performed worse than those prioritizing recall, as evidenced by the performance gap between conservative approaches (scores 0.10-0.16) and aggressive ones (scores 0.45-0.60).
+
+- **Insufficient historical integration**: The initial rule-based program (Generation 0, score 0.10) with minimal historical context achieved the worst performance, while programs with richer historical modeling consistently performed better.
+
+## Implementation Insights
+
+- **Exponential weighting dominance**: The current best program's use of exponentially weighted averages (0.5 * prev_1 + 0.3 * prev_2 + 0.2 * prev_3) for both latency and queue metrics appears optimal, as this pattern is consistently present in higher-scoring programs and absent in lower-scoring ones.
+
+- **Aggressive threshold calibration**: The current best program's risk_score >= 2.0 threshold represents the sweet spot for this problem domain, achieving perfect recall while maintaining reasonable precision (0.28), compared to higher thresholds in early generations that caused 83-89% false admit rates.
+
+- **Layered risk accumulation**: The best program builds risk scores incrementally through multiple components (current latency: up to 4.0, queue depth: up to 3.5, historical pressure: up to 2.5, size penalties: up to 2.0), allowing fine-grained risk assessment rather than binary decisions.
+
+- **Compound condition detection**: The current best program's interaction effects (latency > 70 + queue_len > 0 adds 1.5, size >= 32768 + prev_queue_weighted > 1 adds 1.0) effectively capture dangerous combinations that individual metrics might miss, contributing to its superior performance.
+
+## Performance Analysis
+
+- **Clear performance hierarchy**: There's a distinct performance tier separation with aggressive approaches (scores 0.45-0.60) significantly outperforming conservative ones (scores 0.10-0.16), demonstrating that minimizing false admits is more critical than avoiding false rejects in this domain.
+
+- **False admit rate as primary driver**: The current best program's near-zero false admit rate (0.0017) directly correlates with its top combined score (0.60), while programs with high false admit rates (83-89%) consistently scored poorly regardless of other metrics, confirming the 0.3 weight on (1 - false_admit_rate) in the scoring function.
+
+- **Recall-precision trade-off optimization**: The current best program achieves the optimal trade-off with perfect recall (1.00) and acceptable precision (0.28), outperforming Generation 9's similar approach (recall 1.00, precision 0.21, score 0.54) through better threshold calibration that reduces excessive false rejects.
+
+- **Accuracy vs. combined score divergence**: Programs with higher accuracy don't necessarily achieve better combined scores - Generation 3 had 82% accuracy but only 0.14 combined score due to high false admits, while the current best program has 50% accuracy but 0.60 combined score, highlighting the importance of the weighted scoring function that prioritizes recall and false admit minimization.
+
+# META RECOMMENDATIONS
+
+The following are actionable recommendations for the next program generations:
+
+Based on the global insights and the current best program's success patterns, here are 5 actionable recommendations for future program mutations:
+
+1. **Implement dynamic threshold adaptation based on recent performance patterns**: The current best program uses a fixed 2.0 threshold, but could benefit from adaptive thresholds that adjust based on recent false admit/reject rates. Implement a sliding threshold between 1.5-2.5 that decreases when false admits occur in recent history and increases when false reject rates exceed 70%, maintaining the aggressive stance while fine-tuning precision.
+
+2. **Enhance interaction effect modeling with three-way compound conditions**: Extend the current program's successful two-way interaction effects (latency+queue, size+pressure) to include three-way combinations like "high latency + queue growth + large size" or "sustained pressure + throughput decline + current congestion." Add risk score bonuses of 2.0-3.0 for these compound danger signals, as the current program's interaction effects contribute significantly to its superior performance.
+
+3. **Implement exponentially decaying risk accumulation with temporal weighting**: Build upon the current program's exponential weighting (0.5, 0.3, 0.2) by adding temporal decay to risk components - recent risk factors should have higher impact than older ones. Apply decay multipliers (1.0 for current, 0.8 for t-1, 0.6 for t-2) to each risk component before summation, allowing the system to respond more aggressively to emerging congestion patterns.
+
+4. **Add predictive queue trajectory modeling using historical derivatives**: Extend the current program's queue growth detection by implementing second-order derivatives of queue length trends. Calculate queue acceleration (change in queue growth rate) and add risk penalties of 1.5-2.5 when queue acceleration is positive and exceeds 0.5 requests/time-unit, enabling earlier detection of congestion onset before it becomes severe.
+
+5. **Implement risk score normalization with adaptive scaling based on workload characteristics**: While maintaining the aggressive 2.0 threshold, add workload-aware risk scaling that adjusts component weights based on recent I/O patterns. When average request sizes are large (>32KB), increase size penalty weights by 1.5x; when throughput variance is high, increase latency component weights by 1.3x, allowing the system to adapt its sensitivity to the most relevant risk factors for the current workload while preserving the successful aggressive rejection strategy.

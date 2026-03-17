@@ -1,0 +1,14 @@
+{
+  "generation": 5,
+  "novelty_attempt": 1,
+  "resample_attempt": 1,
+  "patch_attempt": 1,
+  "success": true,
+  "num_applied": 1,
+  "patch_name": "aggressive_weighted_scoring_system",
+  "patch_description": "Replace the simple rule-based system with a weighted scoring approach that's more sensitive to detecting slow I/Os. The current rules are too conservative (only catching extreme cases like latency > 200\u00b5s or queue > 8). I'll implement a scoring system that:\n\n1. Uses lower thresholds to catch more borderline cases\n2. Incorporates throughput trends which weren't used before\n3. Uses exponential weighting for recent vs older historical data\n4. Adds interaction terms between features\n5. Uses a much lower rejection threshold to be more aggressive\n\nThis should significantly reduce the false admit rate while keeping false rejects low.",
+  "error_msg": null,
+  "timestamp": "2026-03-16T20:51:24.804510",
+  "llm_cost": 0.047577,
+  "llm_model": null
+}

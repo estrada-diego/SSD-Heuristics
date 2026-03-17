@@ -1,0 +1,196 @@
+Looking at the performance metrics, I can see that the current program has a very high false admit rate (89.6%), meaning it's letting through too many slow I/Os. The current rule-based approach is too conservative - it only catches the most extreme cases but misses many borderline slow I/Os.
+
+I need to make the heuristic more aggressive at catching slow I/Os while maintaining low false rejects. The key insight is to use a more nuanced scoring system that can capture subtle patterns and lower the rejection threshold.
+
+<NAME>
+aggressive_weighted_scoring_system
+</NAME>
+
+<DESCRIPTION>
+Replace the simple rule-based system with a weighted scoring approach that's more sensitive to detecting slow I/Os. The current rules are too conservative (only catching extreme cases like latency > 200µs or queue > 8). I'll implement a scoring system that:
+
+1. Uses lower thresholds to catch more borderline cases
+2. Incorporates throughput trends which weren't used before
+3. Uses exponential weighting for recent vs older historical data
+4. Adds interaction terms between features
+5. Uses a much lower rejection threshold to be more aggressive
+
+This should significantly reduce the false admit rate while keeping false rejects low.
+</DESCRIPTION>
+
+<DIFF>
+<<<<<<< SEARCH
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
+
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Rule 1: current latency spike
+    if latency > 200.0:
+        return 1
+
+    # Rule 2: queue congestion
+    if queue_len > 8:
+        return 1
+
+    # Rule 3: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
+
+    # Rule 4: large request into a non-empty queue
+    if size >= 65536 and queue_len > 2:
+        return 1
+
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    return 0
+=======
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    # Exponentially weighted historical averages (recent data more important)
+    prev_latency_weighted = (
+        0.5 * features["prev_latency_1"] +
+        0.3 * features["prev_latency_2"] +
+        0.2 * features["prev_latency_3"]
+    )
+
+    prev_queue_weighted = (
+        0.5 * features["prev_queue_len_1"] +
+        0.3 * features["prev_queue_len_2"] +
+        0.2 * features["prev_queue_len_3"]
+    )
+
+    # Throughput trend (declining throughput indicates congestion)
+    throughput_trend = (
+        features["prev_throughput_1"] - features["prev_throughput_3"]
+    ) if features["prev_throughput_3"] > 0 else 0
+
+    # Initialize risk score
+    risk_score = 0.0
+
+    # Current latency component (more aggressive thresholds)
+    if latency > 120.0:
+        risk_score += 4.0
+    elif latency > 80.0:
+        risk_score += 2.5
+    elif latency > 60.0:
+        risk_score += 1.5
+    elif latency > 40.0:
+        risk_score += 0.8
+
+    # Queue depth component (more aggressive)
+    if queue_len > 5:
+        risk_score += 3.5
+    elif queue_len > 3:
+        risk_score += 2.0
+    elif queue_len > 1:
+        risk_score += 1.0
+    elif queue_len > 0:
+        risk_score += 0.5
+
+    # Historical pressure component
+    if prev_latency_weighted > 100.0:
+        risk_score += 2.5
+    elif prev_latency_weighted > 70.0:
+        risk_score += 1.5
+    elif prev_latency_weighted > 50.0:
+        risk_score += 0.8
+
+    if prev_queue_weighted > 4:
+        risk_score += 2.0
+    elif prev_queue_weighted > 2:
+        risk_score += 1.0
+    elif prev_queue_weighted > 1:
+        risk_score += 0.5
+
+    # Size penalty (large requests are inherently riskier)
+    if size >= 65536:
+        risk_score += 2.0
+    elif size >= 32768:
+        risk_score += 1.2
+    elif size >= 16384:
+        risk_score += 0.6
+
+    # Throughput decline penalty
+    if throughput_trend < -1000:
+        risk_score += 1.5
+    elif throughput_trend < -500:
+        risk_score += 0.8
+
+    # Interaction effects
+    # High latency + any queue depth
+    if latency > 70.0 and queue_len > 0:
+        risk_score += 1.5
+
+    # Large request + any historical pressure
+    if size >= 32768 and prev_queue_weighted > 1:
+        risk_score += 1.0
+
+    # Queue growth pattern
+    queue_growth = queue_len - prev_queue_weighted
+    if queue_growth > 1:
+        risk_score += queue_growth * 0.8
+
+    # Sustained pressure (queue + latency together)
+    if prev_queue_weighted > 2 and prev_latency_weighted > 60:
+        risk_score += 1.5
+
+    # Be much more aggressive - lower threshold to catch more slow I/Os
+    return 1 if risk_score >= 2.0 else 0
+>>>>>>> REPLACE
+</DIFF>

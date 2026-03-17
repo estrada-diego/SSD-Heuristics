@@ -1,0 +1,14 @@
+{
+  "generation": 8,
+  "novelty_attempt": 1,
+  "resample_attempt": 1,
+  "patch_attempt": 1,
+  "success": true,
+  "num_applied": 1,
+  "patch_name": "adaptive_cascade_filter",
+  "patch_description": "Drawing inspiration from the context programs, I noticed that the highest-scoring approach (0.60) used very aggressive thresholds to minimize false admits. However, instead of using a single risk scoring system, I'm implementing a novel cascading filter approach inspired by signal processing and network packet filtering.\n\nThe key insights from the context programs are: (1) exponential weighting of recent data works well, (2) interaction effects between features are crucial, (3) being aggressive about rejections dramatically improves the combined score, and (4) throughput trends are underutilized.\n\nMy novel approach implements a multi-stage cascade where each stage acts as a specialized filter for different types of problematic I/O patterns. Unlike the scoring approaches, this uses a series of increasingly sensitive filters that can trigger rejection at any stage. The cascade includes: immediate danger detection, system saturation detection, trend-based prediction, and compound risk detection. Each filter is tuned to catch specific failure modes while the cascade structure ensures we don't miss slow I/Os that might slip through individual filters.",
+  "error_msg": null,
+  "timestamp": "2026-03-16T20:53:01.087731",
+  "llm_cost": 0.068961,
+  "llm_model": null
+}

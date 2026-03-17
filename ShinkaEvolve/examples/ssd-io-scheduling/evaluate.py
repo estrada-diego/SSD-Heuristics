@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 from shinka.core import run_shinka_eval
 
 # ---------------------------------------------------------------------------
@@ -44,6 +45,8 @@ DEFAULT_DATASET_PATH = "data.csv"   # default if nothing is provided
 NUM_RUNS = 3
 NUM_SAMPLES_PER_RUN = 2000
 BASE_SEED = 42
+DEFAULT_TRAIN_EVAL_SPLIT = "100_0"
+DEFAULT_SPLIT_SECTION = "full"
 
 
 
@@ -99,6 +102,50 @@ def _load_dataset(dataset_path: Optional[str]) -> Tuple[List[Dict[str, float]], 
     return features, labels
 
 
+def parse_train_eval_split(train_eval_split: str) -> Tuple[int, int]:
+    parts = train_eval_split.split("_")
+    if len(parts) != 2:
+        raise ValueError(
+            f"Invalid split '{train_eval_split}'. Expected format like '80_20'."
+        )
+    train_pct = int(parts[0])
+    eval_pct = int(parts[1])
+    if train_pct < 0 or eval_pct < 0 or (train_pct + eval_pct) != 100:
+        raise ValueError(
+            f"Invalid split '{train_eval_split}'. Train and eval must be >= 0 and sum to 100."
+        )
+    return train_pct, eval_pct
+
+
+def split_dataset(
+    features: List[Dict[str, float]],
+    labels: List[int],
+    train_eval_split: str,
+    split_section: str = "full",
+    split_seed: int = BASE_SEED,
+) -> Tuple[List[Dict[str, float]], List[int]]:
+    section = split_section.lower()
+    if section not in {"full", "train", "eval"}:
+        raise ValueError(
+            f"Invalid split_section '{split_section}'. Expected one of: full, train, eval."
+        )
+
+    train_pct, eval_pct = parse_train_eval_split(train_eval_split)
+    if section == "full" or train_pct == 100 or eval_pct == 0:
+        return features, labels
+
+    x_train, x_eval, y_train, y_eval = train_test_split(
+        features,
+        labels,
+        test_size=eval_pct / 100.0,
+        random_state=split_seed,
+        shuffle=True,
+    )
+    if section == "train":
+        return list(x_train), list(y_train)
+    return list(x_eval), list(y_eval)
+
+
 
 # ---------------------------------------------------------------------------
 # Metrics
@@ -152,12 +199,24 @@ def _compute_metrics(y_true: List[int], y_pred: List[int]) -> Dict[str, Any]:
 # ShinkaEvolve hooks
 # ---------------------------------------------------------------------------
 
-def get_experiment_kwargs(run_idx: int, dataset_path: Optional[str]) -> Dict[str, Any]:
+def get_experiment_kwargs(
+    run_idx: int,
+    dataset_path: Optional[str],
+    train_eval_split: str,
+    split_section: str,
+) -> Dict[str, Any]:
     """
     Called once per run by run_shinka_eval.
     Each run gets a different seed so the heuristic is tested on different subsets.
     """
     features, labels = _load_dataset(dataset_path)
+    features, labels = split_dataset(
+        features=features,
+        labels=labels,
+        train_eval_split=train_eval_split,
+        split_section=split_section,
+        split_seed=BASE_SEED,
+    )
     seed = BASE_SEED + run_idx
 
     if NUM_SAMPLES_PER_RUN is not None and NUM_SAMPLES_PER_RUN < len(features):
@@ -259,12 +318,19 @@ def aggregate_metrics_fn(results: List[Any]) -> Dict[str, Any]:
 
 # --- Entry point ---
 def main(program_path: str, results_dir: str, dataset_path: Optional[str]) -> None:
+    train_eval_split = os.environ.get("SHINKA_TRAIN_EVAL_SPLIT", DEFAULT_TRAIN_EVAL_SPLIT)
+    split_section = os.environ.get("SHINKA_SPLIT_SECTION", DEFAULT_SPLIT_SECTION)
     run_shinka_eval(
         program_path=program_path,
         results_dir=results_dir,
         experiment_fn_name="run_experiment",
         num_runs=NUM_RUNS,
-        get_experiment_kwargs=lambda run_idx: get_experiment_kwargs(run_idx, dataset_path),
+        get_experiment_kwargs=lambda run_idx: get_experiment_kwargs(
+            run_idx,
+            dataset_path,
+            train_eval_split,
+            split_section,
+        ),
         aggregate_metrics_fn=aggregate_metrics_fn,
         validate_fn=validate_fn,
     )
@@ -281,6 +347,25 @@ if __name__ == "__main__":
         help="Path to CSV dataset. If relative, resolved relative to evaluate.py. "
              "If omitted, uses $SHINKA_DATASET_PATH or ./data.csv next to evaluate.py.",
     )
+    parser.add_argument(
+        "--train_eval_split",
+        type=str,
+        default=None,
+        help="Optional split ratio like 80_20. If provided, overrides $SHINKA_TRAIN_EVAL_SPLIT.",
+    )
+    parser.add_argument(
+        "--split_section",
+        type=str,
+        default=None,
+        choices=["full", "train", "eval"],
+        help="Which partition to evaluate on. If provided, overrides $SHINKA_SPLIT_SECTION.",
+    )
     args = parser.parse_args()
+
+    if args.train_eval_split:
+        os.environ["SHINKA_TRAIN_EVAL_SPLIT"] = args.train_eval_split
+    if args.split_section:
+        os.environ["SHINKA_SPLIT_SECTION"] = args.split_section
+
     Path(args.results_dir).mkdir(parents=True, exist_ok=True)
     main(args.program_path, args.results_dir, args.dataset_path)
