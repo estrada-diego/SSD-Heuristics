@@ -1,0 +1,199 @@
+Looking at the current program and the performance metrics, I can see that the heuristic has a good combined score of 0.57 but still has a false admit rate of 0.11, which is the most costly error type. The current approach uses simple threshold-based rules, but I can improve it by adding more sophisticated trend analysis and dynamic threshold adjustment.
+
+The key insight is that the system should be more aggressive about rejecting requests when multiple indicators suggest deteriorating performance, and should use recent trends to predict future congestion before it becomes severe.
+
+<NAME>
+dynamic_trend_analysis
+</NAME>
+
+<DESCRIPTION>
+Adding dynamic trend analysis to detect performance degradation patterns and adjust thresholds based on recent system behavior. This includes:
+1. Latency acceleration detection - reject if latency is rapidly increasing
+2. Queue momentum analysis - detect growing queue backlogs early
+3. Throughput degradation detection - use throughput trends as an early warning signal
+4. Dynamic threshold adjustment based on recent system state
+5. Multi-factor compound risk assessment that considers interactions between metrics
+
+This should reduce false admits by catching deteriorating conditions earlier while maintaining reasonable precision.
+</DESCRIPTION>
+
+<DIFF>
+<<<<<<< SEARCH
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
+
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Rule 1: current latency spike
+    if latency > 200.0:
+        return 1
+
+    # Rule 2: queue congestion
+    if queue_len > 8:
+        return 1
+
+    # Rule 3: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
+
+    # Rule 4: large request into a non-empty queue
+    if size >= 65536 and queue_len > 2:
+        return 1
+
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    return 0
+=======
+def predict(features: Dict[str, float]) -> int:
+    """
+    Heuristic for SSD I/O admission control.
+
+    Args:
+        features: dict mapping feature name -> float value.
+                  Keys: size, queue_len, prev_queue_len_1/2/3,
+                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+
+    Returns:
+        1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
+        0  →  KEEP    (predicted fast/normal I/O — let through)
+
+    Fitness being maximised:
+        combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+
+    False admits (predicting KEEP for a truly slow I/O) are the most costly
+    error because they cause direct tail-latency spikes at the SSD.
+    False rejects (predicting REJECT for a fast I/O) are less costly.
+    """
+    latency   = features["latency"]
+    queue_len = features["queue_len"]
+    size      = features["size"]
+
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
+
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Trend analysis for early warning signals
+    prev_throughput_avg = (
+        features["prev_throughput_1"]
+        + features["prev_throughput_2"]
+        + features["prev_throughput_3"]
+    ) / 3.0
+
+    # Detect latency acceleration (rapid increase)
+    latency_acceleration = 0.0
+    if features["prev_latency_1"] > 0:
+        latency_acceleration = (latency - features["prev_latency_1"]) / features["prev_latency_1"]
+
+    # Detect queue momentum (growing backlog)
+    queue_momentum = 0.0
+    if features["prev_queue_len_1"] > 0:
+        queue_momentum = (queue_len - features["prev_queue_len_1"]) / max(features["prev_queue_len_1"], 1.0)
+
+    # Detect throughput degradation
+    throughput_degradation = False
+    if features["prev_throughput_1"] > 0 and prev_throughput_avg > 0:
+        throughput_trend = (features["prev_throughput_1"] - prev_throughput_avg) / prev_throughput_avg
+        throughput_degradation = throughput_trend < -0.15
+
+    # Dynamic threshold adjustment based on system state
+    base_latency_threshold = 200.0
+    if prev_latency_avg > 120.0 or prev_queue_avg > 5.0:
+        base_latency_threshold = 160.0  # More aggressive when system is stressed
+    elif prev_latency_avg > 80.0 or prev_queue_avg > 3.0:
+        base_latency_threshold = 180.0  # Moderately more aggressive
+
+    # Rule 1: adaptive latency spike detection
+    if latency > base_latency_threshold:
+        return 1
+
+    # Rule 2: latency acceleration detection
+    if latency_acceleration > 0.5 and latency > 120.0:
+        return 1
+
+    # Rule 3: queue congestion with dynamic threshold
+    queue_threshold = 8
+    if prev_queue_avg > 4.0:
+        queue_threshold = 6  # Lower threshold when historically congested
+    if queue_len > queue_threshold:
+        return 1
+
+    # Rule 4: queue momentum detection
+    if queue_momentum > 0.6 and queue_len > 3:
+        return 1
+
+    # Rule 5: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
+
+    # Rule 6: large request into congested conditions
+    if size >= 65536 and (queue_len > 2 or prev_queue_avg > 3.0):
+        return 1
+
+    # Rule 7: compound pressure with trend analysis
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    # Rule 8: throughput degradation early warning
+    if throughput_degradation and (queue_len > 4 or latency > 100.0):
+        return 1
+
+    # Rule 9: multi-factor deterioration detection
+    deterioration_score = 0
+    if latency > 140.0:
+        deterioration_score += 1
+    if queue_len > 5:
+        deterioration_score += 1
+    if latency_acceleration > 0.3:
+        deterioration_score += 1
+    if queue_momentum > 0.4:
+        deterioration_score += 1
+    if prev_latency_avg > 100.0:
+        deterioration_score += 1
+
+    if deterioration_score >= 3:
+        return 1
+
+    return 0
+>>>>>>> REPLACE
+</DIFF>

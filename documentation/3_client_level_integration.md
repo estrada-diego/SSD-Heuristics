@@ -125,6 +125,49 @@ The experiment will begin with `Testbed Reservation`.
 
 ---
 
+### Train & Run Shinka
+
++ We also provide a **Shinka-based** client-level path that evolves a lightweight, C-translatable admission heuristic from the same baseline replay traces used by Heimdall.
+
++ Before using the Shinka workflow, install the bundled `ShinkaEvolve` package once:
+
+  ```bash
+  cd $HEIMDALL/ShinkaEvolve
+  python3 -m pip install -e .
+  ```
+
++ The Shinka workflow will:
+
+  1. Prepare labeled per-device datasets from `baseline/trace_*.trace`.
+  2. Run Shinka evolutionary search on each device dataset.
+  3. Export the best `predict()` program into replay-time C headers.
+  4. Compile and replay the client-level experiment with the exported heuristic.
+
++ Run the end-to-end Shinka pipeline by:
+
+  ```bash
+  cd $HEIMDALL/integration/client-level/experiment/
+
+  ./run_shinka.py -devices /dev/nvme0n1 /dev/nvme1n1 -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
+  ```
+
++ If you only want to generate the Shinka datasets without running evolution yet:
+
+  ```bash
+  python3 $HEIMDALL/integration/client-level/shinka/prepare_dataset.py \
+    -devices /dev/nvme0n1 /dev/nvme1n1 \
+    -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
+  ```
+
++ **Output:** In directory `Heimdall/integration/client-level/data/*/*/*/nvme0n1...nvme1n1/shinka`.
+
+  + `training_results/dataset_device_0.csv` and `dataset_device_1.csv`: per-device Shinka datasets.
+  + `training_results/evolution_device_*/best/main.py`: best evolved heuristics.
+  + `training_results/exported_heuristics/shinka_dev_*.h`: replay-time C headers.
+  + Replay outputs and aggregated statistics with the same shape as the other client-level methods.
+
+---
+
 ### Run Random
 
 + We continue to produce one of the baseline methods: **Random**. Random method submits IO to any one of the devices randomly to achieve load balancing. You can compile it by:

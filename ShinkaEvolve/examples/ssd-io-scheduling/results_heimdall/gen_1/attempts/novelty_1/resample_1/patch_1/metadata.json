@@ -5,10 +5,10 @@
   "patch_attempt": 1,
   "success": true,
   "num_applied": 1,
-  "patch_name": "adaptive_pressure_scoring",
-  "patch_description": "This approach uses a fundamentally different algorithmic strategy based on adaptive pressure scoring rather than fixed threshold rules. Instead of hard-coded thresholds, it computes a dynamic \"pressure score\" that combines multiple signals with adaptive weights based on current system state. The key innovation is using exponential decay functions and relative change detection to capture system dynamics more effectively. It also employs a multi-stage decision process where different pressure levels trigger different rejection strategies, making it more sensitive to emerging congestion patterns while being less prone to false admits during transient spikes.",
+  "patch_name": "trend_aware_scoring",
+  "patch_description": "I'm replacing the simple threshold-based rules with a trend-aware scoring system that:\n\n1. Detects latency trends by comparing current vs previous latency values\n2. Uses a weighted scoring approach that combines multiple risk factors\n3. Applies more aggressive thresholds to reduce false admits\n4. Considers queue length momentum (increasing vs decreasing trends)\n5. Penalizes large requests more heavily when system is under stress\n\nThe key improvements:\n- Trend detection: If current latency is significantly higher than recent average, it's a strong reject signal\n- Queue momentum: Rising queue lengths are more dangerous than stable/falling ones\n- Composite risk score: Multiple weak signals can combine to trigger rejection\n- Size-aware thresholds: Larger requests get rejected more aggressively under load",
   "error_msg": null,
-  "timestamp": "2026-03-16T20:49:43.636838",
-  "llm_cost": 0.033564000000000004,
+  "timestamp": "2026-03-25T20:34:45.333945",
+  "llm_cost": 0.034692,
   "llm_model": null
 }

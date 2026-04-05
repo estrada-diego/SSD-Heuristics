@@ -1,0 +1,90 @@
+Looking at the performance metrics, I can see that the current heuristic has a false admit rate of 10.84%, which is the most costly error type. The combined score is 0.5744, and we need to reduce false admits while maintaining good recall.
+
+Analyzing the prior programs, I notice that the second program (score 0.54) used adaptive thresholds based on recent history, which is a promising approach. The current program is simpler but could benefit from more sophisticated trend detection and adaptive thresholds.
+
+I'll propose an improvement that adds throughput trend analysis and more nuanced adaptive thresholds to better catch deteriorating system conditions before they cause slow I/Os.
+
+<NAME>
+adaptive_throughput_trends
+</NAME>
+
+<DESCRIPTION>
+The current heuristic misses some slow I/Os (10.84% false admit rate) because it doesn't consider throughput trends, which are early indicators of system degradation. I'm adding throughput trend analysis and making the latency threshold more adaptive based on both historical latency and throughput patterns. When throughput is declining, it often precedes latency spikes, so we should be more aggressive in rejecting requests. Additionally, I'm refining the adaptive latency threshold to be more sensitive to recent performance degradation.
+</DESCRIPTION>
+
+<DIFF>
+<<<<<<< SEARCH
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Rule 1: current latency spike
+    if latency > 200.0:
+        return 1
+=======
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
+
+    # Calculate throughput trend (declining throughput indicates system stress)
+    prev_throughput_avg = (
+        features["prev_throughput_1"]
+        + features["prev_throughput_2"]
+        + features["prev_throughput_3"]
+    ) / 3.0
+
+    # Throughput slope (negative = declining performance)
+    if features["prev_throughput_2"] > 0:
+        throughput_slope = (features["prev_throughput_1"] - features["prev_throughput_2"]) / features["prev_throughput_2"]
+    else:
+        throughput_slope = 0.0
+
+    # Adaptive latency threshold based on recent history and throughput trends
+    base_threshold = max(120.0, prev_latency_avg * 1.2)
+
+    # Lower threshold when throughput is declining (early warning)
+    if throughput_slope < -0.15:
+        adaptive_threshold = base_threshold * 0.7
+    elif throughput_slope < -0.05:
+        adaptive_threshold = base_threshold * 0.85
+    else:
+        adaptive_threshold = base_threshold
+
+    # Rule 1: adaptive latency spike detection
+    if latency > adaptive_threshold:
+        return 1
+
+    # Rule 1b: absolute high latency ceiling
+    if latency > 220.0:
+        return 1
+=======
+>>>>>>> REPLACE
+</DIFF>
+
+<DIFF>
+<<<<<<< SEARCH
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    return 0
+=======
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    # Rule 6: throughput degradation with moderate latency
+    if throughput_slope < -0.2 and latency > 80.0:
+        return 1
+
+    # Rule 7: sustained throughput decline with queue pressure
+    if prev_throughput_avg > 0 and throughput_slope < -0.1 and queue_len > 4:
+        return 1
+
+    return 0
+>>>>>>> REPLACE
+</DIFF>

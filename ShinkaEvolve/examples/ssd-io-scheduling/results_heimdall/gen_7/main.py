@@ -45,97 +45,76 @@ def predict(features: Dict[str, float]) -> int:
     queue_len = features["queue_len"]
     size      = features["size"]
 
-    # Exponentially weighted historical averages (recent data more important)
-    prev_latency_weighted = (
-        0.5 * features["prev_latency_1"] +
-        0.3 * features["prev_latency_2"] +
-        0.2 * features["prev_latency_3"]
-    )
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
 
-    prev_queue_weighted = (
-        0.5 * features["prev_queue_len_1"] +
-        0.3 * features["prev_queue_len_2"] +
-        0.2 * features["prev_queue_len_3"]
-    )
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
 
-    # Throughput trend (declining throughput indicates congestion)
-    throughput_trend = (
-        features["prev_throughput_1"] - features["prev_throughput_3"]
-    ) if features["prev_throughput_3"] > 0 else 0
+    # Calculate throughput trend (declining throughput indicates system stress)
+    prev_throughput_avg = (
+        features["prev_throughput_1"]
+        + features["prev_throughput_2"]
+        + features["prev_throughput_3"]
+    ) / 3.0
 
-    # Stage 1: Hard rejection rules for obvious slow I/Os
-    # These are very conservative to maintain near-zero false admit rate
-    if latency > 200.0:
+    # Throughput slope (negative = declining performance)
+    if features["prev_throughput_2"] > 0:
+        throughput_slope = (features["prev_throughput_1"] - features["prev_throughput_2"]) / features["prev_throughput_2"]
+    else:
+        throughput_slope = 0.0
+
+    # Adaptive latency threshold based on recent history and throughput trends
+    base_threshold = max(120.0, prev_latency_avg * 1.2)
+
+    # Lower threshold when throughput is declining (early warning)
+    if throughput_slope < -0.15:
+        adaptive_threshold = base_threshold * 0.7
+    elif throughput_slope < -0.05:
+        adaptive_threshold = base_threshold * 0.85
+    else:
+        adaptive_threshold = base_threshold
+
+    # Rule 1: adaptive latency spike detection
+    if latency > adaptive_threshold:
         return 1
-    
+
+    # Rule 1b: absolute high latency ceiling
+    if latency > 220.0:
+        return 1
+=======
+
+    # Rule 2: queue congestion
     if queue_len > 8:
         return 1
-    
-    if prev_latency_weighted > 150.0 and queue_len > 2:
-        return 1
-    
-    if size >= 65536 and queue_len > 4:
+
+    # Rule 3: sustained high latency trend
+    if prev_latency_avg > 150.0:
         return 1
 
-    # Stage 2: Continuous risk scoring for borderline cases
-    risk_score = 0.0
+    # Rule 4: large request into a non-empty queue
+    if size >= 65536 and queue_len > 2:
+        return 1
 
-    # Current latency component (smooth scaling from inspiration program)
-    risk_score += max(0, (latency - 60.0) / 120.0) * 3.5
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
 
-    # Queue depth component (exponential penalty but less aggressive)
-    if queue_len > 0:
-        risk_score += (queue_len / 12.0) ** 1.3 * 2.5
+    # Rule 6: throughput degradation with moderate latency
+    if throughput_slope < -0.2 and latency > 80.0:
+        return 1
 
-    # Historical pressure with weighted averages
-    risk_score += max(0, (prev_latency_weighted - 80.0) / 100.0) * 2.0
-    
-    if prev_queue_weighted > 3:
-        risk_score += (prev_queue_weighted - 3) / 4.0 * 1.5
+    # Rule 7: sustained throughput decline with queue pressure
+    if prev_throughput_avg > 0 and throughput_slope < -0.1 and queue_len > 4:
+        return 1
 
-    # Size penalty (smooth scaling)
-    if size >= 32768:
-        size_factor = size / 65536.0
-        risk_score += size_factor * 1.2
-
-    # Throughput decline penalty
-    if throughput_trend < -800:
-        risk_score += abs(throughput_trend) / 1500.0 * 1.0
-
-    # Queue growth trend
-    queue_trend = queue_len - prev_queue_weighted
-    if queue_trend > 0:
-        risk_score += queue_trend / 6.0 * 1.5
-
-    # Enhanced interaction effects
-    # High latency + moderate queue
-    if latency > 80.0 and queue_len > 1:
-        risk_score += 1.8
-
-    # Large request + growing pressure
-    if size >= 32768 and queue_trend > 0.5:
-        risk_score += 1.2
-
-    # Sustained pressure indicator
-    if prev_queue_weighted > 2.5 and prev_latency_weighted > 70:
-        risk_score += 1.6
-
-    # System degradation pattern
-    if latency > prev_latency_weighted * 1.5 and latency > 50:
-        risk_score += 1.0
-
-    # Dynamic threshold adaptation based on system state
-    base_threshold = 3.5
-    
-    # Lower threshold when system shows stress signs
-    if prev_latency_weighted > 100 or prev_queue_weighted > 3:
-        base_threshold = 3.0
-    
-    # Higher threshold when system looks healthy
-    if prev_latency_weighted < 50 and prev_queue_weighted < 2 and latency < 60:
-        base_threshold = 4.5
-
-    return 1 if risk_score >= base_threshold else 0
+    return 0
 # EVOLVE-BLOCK-END
 
 

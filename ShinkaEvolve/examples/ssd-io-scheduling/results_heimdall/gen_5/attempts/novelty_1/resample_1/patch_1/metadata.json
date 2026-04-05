@@ -5,10 +5,10 @@
   "patch_attempt": 1,
   "success": true,
   "num_applied": 1,
-  "patch_name": "aggressive_weighted_scoring_system",
-  "patch_description": "Replace the simple rule-based system with a weighted scoring approach that's more sensitive to detecting slow I/Os. The current rules are too conservative (only catching extreme cases like latency > 200\u00b5s or queue > 8). I'll implement a scoring system that:\n\n1. Uses lower thresholds to catch more borderline cases\n2. Incorporates throughput trends which weren't used before\n3. Uses exponential weighting for recent vs older historical data\n4. Adds interaction terms between features\n5. Uses a much lower rejection threshold to be more aggressive\n\nThis should significantly reduce the false admit rate while keeping false rejects low.",
+  "patch_name": "momentum_and_size_aware_detection",
+  "patch_description": "Adding momentum-based detection to catch deteriorating conditions early, and improving size-aware logic. The key insights are:\n1. Detect when latency is trending upward even if current values aren't extreme\n2. Add queue momentum detection to catch rapidly growing queues\n3. Implement size-aware thresholds that become more aggressive under any load\n4. Add a composite risk factor that considers multiple signals together\n\nThis should help catch more slow I/Os (reduce false admits) while maintaining reasonable precision.",
   "error_msg": null,
-  "timestamp": "2026-03-16T20:51:24.804510",
-  "llm_cost": 0.047577,
+  "timestamp": "2026-03-25T20:36:10.792959",
+  "llm_cost": 0.027549,
   "llm_model": null
 }

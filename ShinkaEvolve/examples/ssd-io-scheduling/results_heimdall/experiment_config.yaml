@@ -129,7 +129,7 @@ job_config:
   extra_cmd_args:
     dataset_path: /users/diegoes/SSD-Heuristics/ds_pipeline/data/dataset/nvme0n1/msr.cut.per_10k.most_thpt_rand_iops.1006/profile_v1.feat_v6.readonly.dataset
     split_section: train
-    train_eval_split: '80_20'
+    train_eval_split: '50_50'
   time: null
 results_directory: /users/diegoes/SSD-Heuristics/ShinkaEvolve/examples/ssd-io-scheduling/results_heimdall
-timestamp: '2026-03-16T20:55:55.825672'
+timestamp: '2026-03-25T22:05:21.740392'

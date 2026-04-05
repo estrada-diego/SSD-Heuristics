@@ -5,10 +5,10 @@
   "patch_attempt": 1,
   "success": true,
   "num_applied": 1,
-  "patch_name": "weighted_risk_scoring",
-  "patch_description": "Replace the simple threshold-based rules with a weighted risk scoring system. Instead of having independent rules that immediately return 1, I'll compute a risk score that combines multiple factors with different weights. This allows for more nuanced decision-making where multiple moderate risk factors can accumulate to trigger a rejection, while also being more aggressive about rejecting requests when we see strong indicators of slowness.\n\nKey improvements:\n1. Use a continuous risk score instead of binary rules\n2. Weight current conditions more heavily than historical averages\n3. Add trend detection by comparing current vs previous values\n4. Include interaction terms (e.g., large requests are riskier when queue is growing)\n5. Lower the rejection threshold to be more aggressive about preventing false admits",
+  "patch_name": "adaptive_pressure_scorer",
+  "patch_description": "This approach replaces simple threshold rules with a multi-dimensional pressure scoring system. It computes separate pressure scores for latency trends, queue congestion, and size-based risk, then combines them using weighted sums. Key improvements: (1) Uses exponential weighting to emphasize recent observations, (2) Detects latency acceleration/deceleration trends, (3) Applies adaptive thresholds based on system state, (4) Uses multiplicative risk factors for compound conditions. The scoring system is more sensitive to emerging congestion patterns and should reduce false admits by catching deteriorating conditions earlier.",
   "error_msg": null,
-  "timestamp": "2026-03-16T20:50:07.283506",
-  "llm_cost": 0.032397,
+  "timestamp": "2026-03-25T20:35:09.566939",
+  "llm_cost": 0.039561,
   "llm_model": null
 }

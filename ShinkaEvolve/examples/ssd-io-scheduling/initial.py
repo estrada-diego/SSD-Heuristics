@@ -16,7 +16,6 @@ FEATURE_COLUMNS = [
     "prev_throughput_1",
     "prev_throughput_2",
     "prev_throughput_3",
-    "latency",
 ]
 
 
@@ -28,7 +27,7 @@ def predict(features: Dict[str, float]) -> int:
     Args:
         features: dict mapping feature name -> float value.
                   Keys: size, queue_len, prev_queue_len_1/2/3,
-                        prev_latency_1/2/3, prev_throughput_1/2/3, latency.
+                        prev_latency_1/2/3, prev_throughput_1/2/3.
 
     Returns:
         1  →  REJECT  (predicted slow/high-latency I/O — block or hedge)
@@ -41,12 +40,12 @@ def predict(features: Dict[str, float]) -> int:
     error because they cause direct tail-latency spikes at the SSD.
     False rejects (predicting REJECT for a fast I/O) are less costly.
     """
-    latency   = features["latency"]
     queue_len = features["queue_len"]
     size      = features["size"]
+    prev_latency_1 = features["prev_latency_1"]
 
     prev_latency_avg = (
-        features["prev_latency_1"]
+        prev_latency_1
         + features["prev_latency_2"]
         + features["prev_latency_3"]
     ) / 3.0
@@ -57,8 +56,8 @@ def predict(features: Dict[str, float]) -> int:
         + features["prev_queue_len_3"]
     ) / 3.0
 
-    # Rule 1: current latency spike
-    if latency > 200.0:
+    # Rule 1: the most recent completed I/O was already slow
+    if prev_latency_1 > 200.0:
         return 1
 
     # Rule 2: queue congestion

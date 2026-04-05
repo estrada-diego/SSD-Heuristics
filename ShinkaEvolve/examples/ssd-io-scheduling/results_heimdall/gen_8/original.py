@@ -57,67 +57,27 @@ def predict(features: Dict[str, float]) -> int:
         + features["prev_queue_len_3"]
     ) / 3.0
 
-    # Compute latency trend (recent vs older)
-    recent_latency = (features["prev_latency_1"] + features["prev_latency_2"]) / 2.0
-    older_latency = features["prev_latency_3"]
-    latency_trend = recent_latency - older_latency if older_latency > 0 else 0
+    # Rule 1: current latency spike
+    if latency > 200.0:
+        return 1
 
-    # Weighted risk scoring system
-    risk_score = 0.0
+    # Rule 2: queue congestion
+    if queue_len > 8:
+        return 1
 
-    # Current conditions (high weight)
-    if latency > 150.0:
-        risk_score += 3.0
-    elif latency > 100.0:
-        risk_score += 1.5
-    elif latency > 80.0:
-        risk_score += 0.8
+    # Rule 3: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
 
-    if queue_len > 6:
-        risk_score += 2.5
-    elif queue_len > 4:
-        risk_score += 1.2
-    elif queue_len > 2:
-        risk_score += 0.6
+    # Rule 4: large request into a non-empty queue
+    if size >= 65536 and queue_len > 2:
+        return 1
 
-    # Historical pressure (medium weight)
-    if prev_latency_avg > 120.0:
-        risk_score += 2.0
-    elif prev_latency_avg > 80.0:
-        risk_score += 1.0
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
 
-    if prev_queue_avg > 5:
-        risk_score += 1.5
-    elif prev_queue_avg > 3:
-        risk_score += 0.8
-
-    # Trend analysis (medium weight)
-    if latency_trend > 50.0:
-        risk_score += 1.8
-    elif latency_trend > 20.0:
-        risk_score += 0.9
-
-    # Request size factor (lower weight but multiplicative for large requests)
-    size_factor = 1.0
-    if size >= 65536:
-        size_factor = 1.4
-        risk_score += 0.8
-    elif size >= 32768:
-        size_factor = 1.2
-        risk_score += 0.4
-
-    # Apply size multiplier
-    risk_score *= size_factor
-
-    # Compounding effects
-    if queue_len > 3 and prev_latency_avg > 60.0:
-        risk_score += 1.0
-
-    if latency > 80.0 and queue_len > 2:
-        risk_score += 1.2
-
-    # More aggressive threshold to catch more slow I/Os
-    return 1 if risk_score >= 3.5 else 0
+    return 0
 # EVOLVE-BLOCK-END
 
 

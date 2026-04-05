@@ -1,6 +1,7 @@
 import logging
 import time
 import asyncio
+import os
 from dataclasses import dataclass, asdict, field
 from typing import Optional, Dict, Any, Tuple, Union, List
 from concurrent.futures import ThreadPoolExecutor
@@ -96,11 +97,12 @@ class JobScheduler:
             )
 
     def _build_command(self, exec_fname_t: str, results_dir_t: str) -> List[str]:
+        python_executable = os.environ.get("SHINKA_PYTHON_EXECUTABLE", "python")
         # Docker requires workspace to be mounted
         if self.job_type == "slurm_docker":
             assert isinstance(self.config, SlurmDockerJobConfig)
             cmd = [
-                "python",
+                python_executable,
                 f"/workspace/{self.config.eval_program_path}",
                 "--program_path",
                 f"/workspace/{exec_fname_t}",
@@ -120,7 +122,7 @@ class JobScheduler:
                     "run",
                     "-n",
                     self.config.conda_env,
-                    "python",
+                    python_executable,
                     f"{self.config.eval_program_path}",
                     "--program_path",
                     f"{exec_fname_t}",
@@ -129,7 +131,7 @@ class JobScheduler:
                 ]
             else:
                 cmd = [
-                    "python",
+                    python_executable,
                     f"{self.config.eval_program_path}",
                     "--program_path",
                     f"{exec_fname_t}",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 from pathlib import Path
 
 from shinka.core import EvolutionRunner, EvolutionConfig
@@ -7,8 +8,9 @@ from shinka.database import DatabaseConfig
 from shinka.launch import LocalJobConfig
 
 HERE = Path(__file__).resolve().parent
-RESULTS = HERE / "results_heimdall"
-RESULTS.mkdir(exist_ok=True)
+RESULTS = Path(os.getenv("SHINKA_RESULTS_DIR", str(HERE / "results_heimdall"))).resolve()
+RESULTS.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("SHINKA_PYTHON_EXECUTABLE", sys.executable)
 
 dataset_path_env = os.getenv("SHINKA_DATASET_PATH")
 default_dataset_path = HERE / "data.csv"
@@ -85,7 +87,6 @@ reduces p99/p999 latency.
 - prev_queue_len_1/2/3  : queue depth at the previous 3 time steps
 - prev_latency_1/2/3    : observed latency (µs) at the previous 3 time steps
 - prev_throughput_1/2/3 : observed throughput at the previous 3 time steps
-- latency               : current observed latency (µs) at decision time
 
 ## Output
 - 1 → REJECT  (predicted slow / high-latency — block or hedge this request)
@@ -107,12 +108,21 @@ Aggressively reducing false admits is the primary lever for improving combined_s
 - Must be stateless and extremely fast (target < 1 µs per call in Python).
 - No file I/O, no model loading, no heavy imports inside predict().
 - Allowed inside predict(): math, builtins, simple arithmetic. No numpy/sklearn.
+- The final heuristic will be translated into C for replay-time deployment.
+- Use only a C-translatable subset:
+  local scalar assignments, arithmetic, comparisons, boolean operators,
+  if/elif/else, and return statements.
+- Do not use loops, comprehensions, containers, helper functions, recursion,
+  exceptions, pattern matching, or dynamic attribute access.
+- Any heuristic using unsupported syntax like `for` or `while` will fail
+  deployment and be discarded, even if it scores well offline.
+- Use only decision-time features available before issuing the current I/O.
 
 ## Approaches to explore
-- Threshold rules on latency, queue_len, size.
+- Threshold rules on recent latency history, queue_len, size.
 - Weighted linear scores compared to a threshold.
 - Trend / slope detection over prev_* time series.
-- Ratios or products of features (e.g. latency × queue_len).
+- Ratios or products of features (e.g. prev_latency_1 × queue_len).
 - Piecewise / decision-tree-style logic.
 - Exponential moving averages computed inline.
 

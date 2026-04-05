@@ -38,7 +38,6 @@ FEATURE_COLUMNS = [
     "prev_throughput_1",
     "prev_throughput_2",
     "prev_throughput_3",
-    "latency",
 ]
 LABEL_COLUMN = "reject"
 DEFAULT_DATASET_PATH = "data.csv"   # default if nothing is provided

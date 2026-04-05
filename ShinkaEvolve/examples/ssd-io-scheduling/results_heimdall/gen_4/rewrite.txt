@@ -23,7 +23,7 @@ FEATURE_COLUMNS = [
 # EVOLVE-BLOCK-START
 def predict(features: Dict[str, float]) -> int:
     """
-    Heuristic for SSD I/O admission control using exponential decay and momentum.
+    Heuristic for SSD I/O admission control.
 
     Args:
         features: dict mapping feature name -> float value.
@@ -41,91 +41,84 @@ def predict(features: Dict[str, float]) -> int:
     error because they cause direct tail-latency spikes at the SSD.
     False rejects (predicting REJECT for a fast I/O) are less costly.
     """
-    # Extract current state
     latency = features["latency"]
     queue_len = features["queue_len"]
     size = features["size"]
     
-    # Extract historical data
+    # Extract historical features
     prev_latencies = [features["prev_latency_1"], features["prev_latency_2"], features["prev_latency_3"]]
     prev_queues = [features["prev_queue_len_1"], features["prev_queue_len_2"], features["prev_queue_len_3"]]
     prev_throughputs = [features["prev_throughput_1"], features["prev_throughput_2"], features["prev_throughput_3"]]
     
-    # Exponential decay weights (more recent = higher weight)
-    weights = [0.5, 0.3, 0.2]  # sum = 1.0
+    # Exponentially weighted averages (more recent = higher weight)
+    weights = [0.5, 0.3, 0.2]  # Recent to old
+    prev_latency_ewa = sum(w * lat for w, lat in zip(weights, prev_latencies))
+    prev_queue_ewa = sum(w * q for w, q in zip(weights, prev_queues))
+    prev_throughput_ewa = sum(w * tp for w, tp in zip(weights, prev_throughputs))
     
-    # Compute exponentially weighted averages
-    ewa_latency = sum(w * lat for w, lat in zip(weights, prev_latencies))
-    ewa_queue = sum(w * q for w, q in zip(weights, prev_queues))
-    ewa_throughput = sum(w * tp for w, tp in zip(weights, prev_throughputs))
+    # Throughput momentum detection (key innovation)
+    throughput_slope = 0.0
+    if prev_throughputs[2] > 0:  # Avoid division by zero
+        throughput_slope = (prev_throughputs[0] - prev_throughputs[2]) / prev_throughputs[2]
     
-    # Compute momentum (rate of change)
-    latency_momentum = prev_latencies[0] - prev_latencies[2]  # recent - old
-    queue_momentum = prev_queues[0] - prev_queues[2]
-    throughput_momentum = prev_throughputs[2] - prev_throughputs[0]  # decreasing throughput is bad
+    # System stress indicators
+    latency_pressure = max(0, latency - 100.0) / 100.0
+    queue_pressure = max(0, queue_len - 3) / 5.0
+    historical_pressure = max(0, prev_latency_ewa - 80.0) / 120.0
     
-    # Multi-scale analysis - short term vs medium term trends
-    short_term_latency = (prev_latencies[0] * 0.7 + prev_latencies[1] * 0.3)
-    medium_term_latency = ewa_latency
-    latency_acceleration = short_term_latency - medium_term_latency
+    # Immediate rejection for critical conditions
+    if latency > 250.0:
+        return 1
     
-    # Adaptive baseline computation
-    baseline_latency = max(50.0, ewa_latency * 0.8)  # Dynamic baseline
-    baseline_queue = max(2.0, ewa_queue * 0.9)
+    if queue_len > 10:
+        return 1
     
-    # Risk factors with exponential scaling
-    risk_score = 0.0
+    # Throughput collapse detection (early warning)
+    if throughput_slope < -0.3 and prev_throughput_ewa > 100000:
+        if latency > 150.0 or queue_len > 4:
+            return 1
     
-    # Current latency spike (exponential penalty)
-    if latency > baseline_latency:
-        latency_ratio = latency / baseline_latency
-        risk_score += (latency_ratio - 1.0) ** 1.8 * 4.0
+    # Adaptive thresholds based on system state
+    stress_multiplier = 1.0 + 0.5 * (latency_pressure + queue_pressure + historical_pressure)
     
-    # Queue depth pressure with exponential growth
-    if queue_len > baseline_queue:
-        queue_ratio = queue_len / baseline_queue
-        risk_score += (queue_ratio - 1.0) ** 2.0 * 3.0
+    # Momentum-based scoring
+    momentum_score = 0.0
     
-    # Momentum-based trend detection
-    if latency_momentum > 20.0:  # Latency increasing
-        risk_score += (latency_momentum / 50.0) ** 1.5 * 2.5
+    # Latency momentum
+    latency_trend = latency - prev_latency_ewa
+    if latency_trend > 30.0:
+        momentum_score += (latency_trend / 50.0) * stress_multiplier
     
-    if queue_momentum > 1.0:  # Queue growing
-        risk_score += (queue_momentum / 3.0) ** 1.2 * 2.0
+    # Queue momentum  
+    queue_trend = queue_len - prev_queue_ewa
+    if queue_trend > 1.5:
+        momentum_score += (queue_trend / 3.0) * stress_multiplier
     
-    if throughput_momentum > 1000.0:  # Throughput dropping significantly
-        risk_score += (throughput_momentum / 2000.0) * 1.8
+    # Throughput decline momentum
+    if throughput_slope < -0.1:
+        momentum_score += abs(throughput_slope) * 2.0 * stress_multiplier
     
-    # Acceleration penalty (latency trend is accelerating)
-    if latency_acceleration > 10.0:
-        risk_score += (latency_acceleration / 30.0) ** 1.3 * 1.5
+    # Size pressure under load
+    if size >= 32768:
+        size_pressure = size / 65536.0
+        if queue_len > 1 or prev_queue_ewa > 2.0:
+            momentum_score += size_pressure * stress_multiplier
     
-    # Size-based risk with adaptive threshold
-    size_threshold = 32768
-    if ewa_queue > 3.0:  # Lower size threshold when system is under pressure
-        size_threshold = 16384
-    if size >= size_threshold:
-        size_factor = size / 65536.0
-        risk_score += size_factor ** 1.4 * 1.2
+    # Compound risk assessment
+    compound_risk = latency_pressure + queue_pressure + historical_pressure
+    if compound_risk > 1.0:
+        momentum_score += compound_risk * 0.8
     
-    # Compound risk interactions
-    # High latency + growing queue = dangerous
-    if latency > baseline_latency * 1.3 and queue_momentum > 0.5:
-        risk_score += 2.0
+    # Decision threshold (tuned for false admit minimization)
+    decision_threshold = 1.0
     
-    # Large request into deteriorating system
-    if size >= 32768 and (latency_momentum > 10 or queue_momentum > 1):
-        risk_score += 1.8
+    # More aggressive under high stress
+    if stress_multiplier > 1.8:
+        decision_threshold = 0.7
+    elif stress_multiplier > 1.4:
+        decision_threshold = 0.85
     
-    # System saturation indicator
-    saturation_score = (latency / 300.0) + (queue_len / 15.0) + (1.0 - min(ewa_throughput / 10000.0, 1.0))
-    if saturation_score > 1.5:
-        risk_score += saturation_score * 1.2
-    
-    # Very aggressive threshold to minimize false admits
-    threshold = 1.8
-    
-    return 1 if risk_score > threshold else 0
+    return 1 if momentum_score > decision_threshold else 0
 # EVOLVE-BLOCK-END
 
 

@@ -1,13 +1,15 @@
-Looking at the performance metrics, I can see the main issue: the heuristic has a very high false admit rate (89.6%) and very low recall (10%). This means it's being too conservative - it's only catching 10% of the truly slow I/Os while letting 90% of them through, which directly hurts the combined score.
-
-The current approach uses simple threshold rules, but I think we need a more sophisticated scoring system that can better identify slow I/Os. Let me implement a weighted scoring approach that considers multiple factors simultaneously and uses more aggressive thresholds.
-
 <NAME>
-weighted_scoring_system
+adaptive_latency_thresholds
 </NAME>
 
 <DESCRIPTION>
-Replace the simple rule-based approach with a weighted scoring system that combines multiple risk factors. The key insight is that slow I/Os often exhibit combinations of warning signs rather than just exceeding single thresholds. By computing a risk score that weighs current conditions, historical trends, and request characteristics, we can be more aggressive in rejecting potentially slow requests. The scoring system uses lower individual thresholds but requires a cumulative risk score to trigger rejection, allowing it to catch more edge cases while maintaining precision.
+The current heuristic uses fixed thresholds (latency > 200, queue_len > 8, etc.) which may not adapt well to varying workload conditions. I'm proposing to make the latency threshold adaptive based on recent historical context.
+
+The key insight is that what constitutes "high latency" depends on the recent baseline. If the system has been running with consistently low latencies (say, prev_latency_avg = 50µs), then even a current latency of 120µs might indicate a problem. Conversely, if the system has been under sustained load with prev_latency_avg = 180µs, then a current latency of 220µs might be more tolerable.
+
+This adaptive approach should reduce false admits by catching latency spikes earlier when the system is normally fast, while avoiding excessive false rejects when the system is under sustained but manageable load.
+
+I'm also adding a multiplicative factor that considers the interaction between current conditions and trends - if both current latency and queue length are elevated relative to recent history, we become more aggressive in rejection.
 </DESCRIPTION>
 
 <DIFF>
@@ -106,66 +108,38 @@ def predict(features: Dict[str, float]) -> int:
         + features["prev_queue_len_3"]
     ) / 3.0
 
-    # Compute latency trend (recent vs older)
-    recent_latency = (features["prev_latency_1"] + features["prev_latency_2"]) / 2.0
-    older_latency = features["prev_latency_3"]
-    latency_trend = recent_latency - older_latency if older_latency > 0 else 0
+    # Adaptive latency threshold based on recent history
+    base_latency_threshold = max(100.0, prev_latency_avg * 1.4)
 
-    # Weighted risk scoring system
-    risk_score = 0.0
+    # Rule 1: adaptive latency spike detection
+    if latency > base_latency_threshold:
+        return 1
 
-    # Current conditions (high weight)
-    if latency > 150.0:
-        risk_score += 3.0
-    elif latency > 100.0:
-        risk_score += 1.5
-    elif latency > 80.0:
-        risk_score += 0.8
+    # Rule 2: absolute high latency ceiling
+    if latency > 250.0:
+        return 1
 
-    if queue_len > 6:
-        risk_score += 2.5
-    elif queue_len > 4:
-        risk_score += 1.2
-    elif queue_len > 2:
-        risk_score += 0.6
+    # Rule 3: queue congestion
+    if queue_len > 8:
+        return 1
 
-    # Historical pressure (medium weight)
-    if prev_latency_avg > 120.0:
-        risk_score += 2.0
-    elif prev_latency_avg > 80.0:
-        risk_score += 1.0
+    # Rule 4: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
 
-    if prev_queue_avg > 5:
-        risk_score += 1.5
-    elif prev_queue_avg > 3:
-        risk_score += 0.8
+    # Rule 5: large request into congested queue
+    if size >= 65536 and queue_len > 2:
+        return 1
 
-    # Trend analysis (medium weight)
-    if latency_trend > 50.0:
-        risk_score += 1.8
-    elif latency_trend > 20.0:
-        risk_score += 0.9
+    # Rule 6: compounding pressure with adaptive sensitivity
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
 
-    # Request size factor (lower weight but multiplicative for large requests)
-    size_factor = 1.0
-    if size >= 65536:
-        size_factor = 1.4
-        risk_score += 0.8
-    elif size >= 32768:
-        size_factor = 1.2
-        risk_score += 0.4
+    # Rule 7: relative latency jump with queue pressure
+    latency_ratio = latency / max(prev_latency_avg, 20.0)
+    if latency_ratio > 2.0 and queue_len > 3:
+        return 1
 
-    # Apply size multiplier
-    risk_score *= size_factor
-
-    # Compounding effects
-    if queue_len > 3 and prev_latency_avg > 60.0:
-        risk_score += 1.0
-
-    if latency > 80.0 and queue_len > 2:
-        risk_score += 1.2
-
-    # More aggressive threshold to catch more slow I/Os
-    return 1 if risk_score >= 3.5 else 0
+    return 0
 >>>>>>> REPLACE
 </DIFF>

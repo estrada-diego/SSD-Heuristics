@@ -1,6 +1,6 @@
 --- a/original.py
 +++ b/original.py
-@@ -1,103 +1,114 @@
+@@ -1,103 +1,195 @@
  from typing import Dict, List
  
  
@@ -44,70 +44,170 @@
      error because they cause direct tail-latency spikes at the SSD.
      False rejects (predicting REJECT for a fast I/O) are less costly.
      """
-     latency   = features["latency"]
+-    latency   = features["latency"]
++    latency = features["latency"]
      queue_len = features["queue_len"]
-     size      = features["size"]
- 
-     prev_latency_avg = (
-         features["prev_latency_1"]
-         + features["prev_latency_2"]
-         + features["prev_latency_3"]
-     ) / 3.0
- 
-     prev_queue_avg = (
-         features["prev_queue_len_1"]
-         + features["prev_queue_len_2"]
-         + features["prev_queue_len_3"]
-     ) / 3.0
- 
+-    size      = features["size"]
+-
+-    prev_latency_avg = (
+-        features["prev_latency_1"]
+-        + features["prev_latency_2"]
+-        + features["prev_latency_3"]
+-    ) / 3.0
+-
+-    prev_queue_avg = (
+-        features["prev_queue_len_1"]
+-        + features["prev_queue_len_2"]
+-        + features["prev_queue_len_3"]
+-    ) / 3.0
+-
 -    # Rule 1: current latency spike
 -    if latency > 200.0:
--        return 1
-+    # Compute risk score (higher = more likely to be slow)
-+    risk_score = 0.0
- 
++    size = features["size"]
++    
++    # Extract historical values
++    prev_latencies = [
++        features["prev_latency_1"],
++        features["prev_latency_2"],
++        features["prev_latency_3"]
++    ]
++    
++    prev_queues = [
++        features["prev_queue_len_1"],
++        features["prev_queue_len_2"],
++        features["prev_queue_len_3"]
++    ]
++    
++    prev_throughputs = [
++        features["prev_throughput_1"],
++        features["prev_throughput_2"],
++        features["prev_throughput_3"]
++    ]
++    
++    # Compute exponentially weighted moving averages (more weight on recent)
++    weights = [0.5, 0.3, 0.2]  # Sum = 1.0
++    
++    ewma_latency = sum(w * lat for w, lat in zip(weights, prev_latencies))
++    ewma_queue = sum(w * q for w, q in zip(weights, prev_queues))
++    ewma_throughput = sum(w * tp for w, tp in zip(weights, prev_throughputs))
++    
++    # Compute latency trend (acceleration/deceleration)
++    if prev_latencies[1] > 0:
++        latency_slope = (prev_latencies[0] - prev_latencies[1]) / prev_latencies[1]
++    else:
++        latency_slope = 0
++    
++    # Compute queue trend
++    if prev_queues[1] > 0:
++        queue_slope = (prev_queues[0] - prev_queues[1]) / max(prev_queues[1], 1)
++    else:
++        queue_slope = 0
++    
++    # Compute throughput trend (negative slope = degrading performance)
++    if prev_throughputs[1] > 0:
++        throughput_slope = (prev_throughputs[0] - prev_throughputs[1]) / prev_throughputs[1]
++    else:
++        throughput_slope = 0
++    
++    # Multi-dimensional pressure scoring
++    pressure_score = 0.0
++    
++    # 1. Current latency pressure (most immediate signal)
++    if latency > 180:
++        pressure_score += 4.0
++    elif latency > 120:
++        pressure_score += 2.0
++    elif latency > 80:
++        pressure_score += 1.0
++    
++    # 2. Queue congestion pressure
++    if queue_len > 10:
++        pressure_score += 3.5
++    elif queue_len > 6:
++        pressure_score += 2.0
++    elif queue_len > 3:
++        pressure_score += 1.0
++    
++    # 3. Historical latency pressure (with trend weighting)
++    if ewma_latency > 140:
++        pressure_score += 2.5
++    elif ewma_latency > 100:
++        pressure_score += 1.5
++    elif ewma_latency > 70:
++        pressure_score += 0.8
++    
++    # 4. Trend-based pressure adjustments
++    if latency_slope > 0.3:  # Latency accelerating
++        pressure_score += 1.5
++    elif latency_slope > 0.1:
++        pressure_score += 0.7
++    
++    if queue_slope > 0.5:  # Queue growing rapidly
++        pressure_score += 1.2
++    elif queue_slope > 0.2:
++        pressure_score += 0.6
++    
++    if throughput_slope < -0.2:  # Throughput degrading
++        pressure_score += 1.0
++    elif throughput_slope < -0.1:
++        pressure_score += 0.5
++    
++    # 5. Size-based risk multiplier
++    size_multiplier = 1.0
++    if size >= 131072:  # 128KB+
++        size_multiplier = 1.4
++    elif size >= 65536:  # 64KB+
++        size_multiplier = 1.2
++    elif size >= 32768:  # 32KB+
++        size_multiplier = 1.1
++    
++    # Apply size multiplier
++    pressure_score *= size_multiplier
++    
++    # 6. Compound risk factors
++    if ewma_queue > 5 and ewma_latency > 90:
++        pressure_score += 1.5  # Sustained congestion
++    
++    if queue_len > 4 and latency > 100:
++        pressure_score += 1.2  # Current stress
++    
++    if latency_slope > 0.2 and queue_slope > 0.3:
++        pressure_score += 1.0  # Deteriorating trends
++    
++    # Adaptive threshold based on system state
++    base_threshold = 2.8
++    
++    # Lower threshold when system is already stressed
++    if ewma_latency > 120 or ewma_queue > 7:
++        threshold = base_threshold - 0.8
++    elif ewma_latency > 80 or ewma_queue > 4:
++        threshold = base_threshold - 0.4
++    else:
++        threshold = base_threshold
++    
++    # Final decision
++    if pressure_score >= threshold:
+         return 1
+-
 -    # Rule 2: queue congestion
 -    if queue_len > 8:
 -        return 1
-+    # Current latency factor (heavily weighted)
-+    risk_score += max(0, (latency - 50.0) / 100.0) * 3.0
- 
+-
 -    # Rule 3: sustained high latency trend
 -    if prev_latency_avg > 150.0:
 -        return 1
-+    # Queue depth factor (exponential penalty for high queue)
-+    if queue_len > 0:
-+        risk_score += (queue_len / 10.0) ** 1.5 * 2.0
- 
+-
 -    # Rule 4: large request into a non-empty queue
 -    if size >= 65536 and queue_len > 2:
 -        return 1
-+    # Historical latency trend
-+    risk_score += max(0, (prev_latency_avg - 80.0) / 120.0) * 1.5
- 
+-
 -    # Rule 5: compounding pressure
 -    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
 -        return 1
-+    # Size penalty (large requests are riskier)
-+    if size >= 32768:
-+        risk_score += (size / 65536.0) * 1.0
- 
+-
 -    return 0
-+    # Queue growth trend (current vs recent average)
-+    queue_trend = queue_len - prev_queue_avg
-+    if queue_trend > 0:
-+        risk_score += queue_trend / 5.0 * 1.2
-+
-+    # Interaction: large requests into growing queues
-+    if size >= 32768 and queue_trend > 1:
-+        risk_score += 1.0
-+
-+    # Interaction: sustained pressure (high queue + high latency)
-+    if prev_queue_avg > 4 and prev_latency_avg > 100:
-+        risk_score += 1.5
-+
-+    # Be aggressive: reject if risk score exceeds threshold
-+    return 1 if risk_score > 2.5 else 0
++    else:
++        return 0
  # EVOLVE-BLOCK-END
  
  

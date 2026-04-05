@@ -4,11 +4,11 @@
   "resample_attempt": 1,
   "patch_attempt": 1,
   "success": true,
-  "num_applied": 1,
-  "patch_name": "adaptive_hybrid_risk_scoring",
-  "patch_description": "This crossover combines the best aspects of both programs: the current program's excellent false admit rate (0.0017) with the inspiration program's more balanced precision. The current program is too aggressive, rejecting 61% of fast I/Os. The inspiration program has better precision but lets through too many slow I/Os (85% false admit rate).\n\nThe hybrid approach uses:\n1. The current program's exponentially weighted historical averages for better trend detection\n2. The inspiration program's smoother continuous risk scoring instead of hard thresholds\n3. A dynamic threshold that adapts based on system state to balance precision vs recall\n4. Enhanced interaction effects to catch edge cases\n5. A two-stage decision process: first check for obvious rejects, then use risk scoring for borderline cases\n\nThis should maintain the near-zero false admit rate while reducing false rejects through more nuanced decision making.",
+  "num_applied": 2,
+  "patch_name": "adaptive_throughput_trends",
+  "patch_description": "The current heuristic misses some slow I/Os (10.84% false admit rate) because it doesn't consider throughput trends, which are early indicators of system degradation. I'm adding throughput trend analysis and making the latency threshold more adaptive based on both historical latency and throughput patterns. When throughput is declining, it often precedes latency spikes, so we should be more aggressive in rejecting requests. Additionally, I'm refining the adaptive latency threshold to be more sensitive to recent performance degradation.",
   "error_msg": null,
-  "timestamp": "2026-03-16T20:52:20.576642",
-  "llm_cost": 0.059322,
+  "timestamp": "2026-03-25T20:36:59.066781",
+  "llm_cost": 0.033321,
   "llm_model": null
 }

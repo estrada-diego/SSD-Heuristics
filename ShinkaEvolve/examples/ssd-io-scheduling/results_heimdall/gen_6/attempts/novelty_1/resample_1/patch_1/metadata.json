@@ -5,10 +5,10 @@
   "patch_attempt": 1,
   "success": true,
   "num_applied": 1,
-  "patch_name": "aggressive_early_rejection",
-  "patch_description": "The current heuristic has a very high false admit rate (84.48%), which is the most costly error. I'm implementing a more aggressive early rejection strategy that:\n\n1. Adds stricter early rejection rules for obvious danger signals\n2. Implements a cascading rejection system where multiple moderate signals combine to trigger rejection\n3. Uses more conservative thresholds in the pressure scoring\n4. Adds specific protection against latency spikes and queue buildup patterns\n\nThe key insight is that it's better to be overly cautious and reject some fast I/Os than to let slow I/Os through, given the 2x penalty weighting for false admits in the fitness function.",
+  "patch_name": "weighted_throughput_trend_heuristic",
+  "patch_description": "The current approach uses simple averaging and fixed thresholds. I'm introducing several key parameter improvements: (1) Exponentially weighted moving averages with decay factor 0.6 for more responsive trend detection, (2) Throughput trend analysis with threshold -0.15 to catch performance degradation early, (3) Dynamic latency thresholds that adapt based on recent history (multiplier 1.6 vs fixed 200), (4) More aggressive queue congestion detection (threshold 6 vs 8), (5) Compound risk scoring with weighted factors (latency\u00d72.0, queue\u00d71.5, size\u00d70.8) instead of independent rules, and (6) Lower size threshold (32KB vs 64KB) with queue interaction threshold of 1 vs 2. These parameter changes should reduce false admits while maintaining reasonable precision.",
   "error_msg": null,
-  "timestamp": "2026-03-16T20:51:55.282103",
-  "llm_cost": 0.053367,
+  "timestamp": "2026-03-25T20:36:40.304660",
+  "llm_cost": 0.046647,
   "llm_model": null
 }

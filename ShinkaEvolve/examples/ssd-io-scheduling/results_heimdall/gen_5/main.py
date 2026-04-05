@@ -45,96 +45,79 @@ def predict(features: Dict[str, float]) -> int:
     queue_len = features["queue_len"]
     size      = features["size"]
 
-    # Exponentially weighted historical averages (recent data more important)
-    prev_latency_weighted = (
-        0.5 * features["prev_latency_1"] +
-        0.3 * features["prev_latency_2"] +
-        0.2 * features["prev_latency_3"]
-    )
+    prev_latency_avg = (
+        features["prev_latency_1"]
+        + features["prev_latency_2"]
+        + features["prev_latency_3"]
+    ) / 3.0
 
-    prev_queue_weighted = (
-        0.5 * features["prev_queue_len_1"] +
-        0.3 * features["prev_queue_len_2"] +
-        0.2 * features["prev_queue_len_3"]
-    )
+    prev_queue_avg = (
+        features["prev_queue_len_1"]
+        + features["prev_queue_len_2"]
+        + features["prev_queue_len_3"]
+    ) / 3.0
 
-    # Throughput trend (declining throughput indicates congestion)
-    throughput_trend = (
-        features["prev_throughput_1"] - features["prev_throughput_3"]
-    ) if features["prev_throughput_3"] > 0 else 0
+    # Rule 1: current latency spike
+    if latency > 200.0:
+        return 1
 
-    # Initialize risk score
+    # Rule 2: queue congestion
+    if queue_len > 8:
+        return 1
+
+    # Rule 3: sustained high latency trend
+    if prev_latency_avg > 150.0:
+        return 1
+
+    # Rule 4: improved size-aware rejection - more aggressive
+    if size >= 32768:  # Lower threshold
+        if queue_len > 1:  # Any queue with large request
+            return 1
+        if prev_latency_avg > 80.0:  # Or if system showing stress
+            return 1
+
+    # Rule 5: compounding pressure
+    if prev_queue_avg > 6 and prev_latency_avg > 100.0:
+        return 1
+
+    # Rule 6: latency momentum detection
+    latency_trend = latency - prev_latency_avg
+    if latency_trend > 40.0 and latency > 120.0:
+        return 1
+
+    # Rule 7: queue momentum detection
+    queue_trend = queue_len - prev_queue_avg
+    if queue_trend > 2.0 and queue_len > 4:
+        return 1
+
+    # Rule 8: composite risk assessment for borderline cases
     risk_score = 0.0
 
-    # Current latency component (more aggressive thresholds)
-    if latency > 120.0:
-        risk_score += 4.0
-    elif latency > 80.0:
-        risk_score += 2.5
-    elif latency > 60.0:
-        risk_score += 1.5
-    elif latency > 40.0:
-        risk_score += 0.8
+    # Latency component
+    if latency > 100.0:
+        risk_score += (latency - 100.0) / 100.0
 
-    # Queue depth component (more aggressive)
-    if queue_len > 5:
-        risk_score += 3.5
-    elif queue_len > 3:
-        risk_score += 2.0
-    elif queue_len > 1:
-        risk_score += 1.0
-    elif queue_len > 0:
-        risk_score += 0.5
+    # Queue pressure component
+    if queue_len > 3:
+        risk_score += (queue_len - 3) * 0.25
 
-    # Historical pressure component
-    if prev_latency_weighted > 100.0:
-        risk_score += 2.5
-    elif prev_latency_weighted > 70.0:
-        risk_score += 1.5
-    elif prev_latency_weighted > 50.0:
-        risk_score += 0.8
+    # Historical stress component
+    if prev_latency_avg > 70.0:
+        risk_score += (prev_latency_avg - 70.0) / 100.0
 
-    if prev_queue_weighted > 4:
-        risk_score += 2.0
-    elif prev_queue_weighted > 2:
-        risk_score += 1.0
-    elif prev_queue_weighted > 1:
-        risk_score += 0.5
+    # Size under load component
+    if size >= 16384 and (queue_len > 0 or prev_queue_avg > 1.0):
+        risk_score += size / 150000.0
 
-    # Size penalty (large requests are inherently riskier)
-    if size >= 65536:
-        risk_score += 2.0
-    elif size >= 32768:
-        risk_score += 1.2
-    elif size >= 16384:
-        risk_score += 0.6
+    # Trend component
+    if latency_trend > 15.0:
+        risk_score += latency_trend / 120.0
 
-    # Throughput decline penalty
-    if throughput_trend < -1000:
-        risk_score += 1.5
-    elif throughput_trend < -500:
-        risk_score += 0.8
+    # Reject if composite risk exceeds threshold
+    if risk_score > 1.0:
+        return 1
 
-    # Interaction effects
-    # High latency + any queue depth
-    if latency > 70.0 and queue_len > 0:
-        risk_score += 1.5
-
-    # Large request + any historical pressure
-    if size >= 32768 and prev_queue_weighted > 1:
-        risk_score += 1.0
-
-    # Queue growth pattern
-    queue_growth = queue_len - prev_queue_weighted
-    if queue_growth > 1:
-        risk_score += queue_growth * 0.8
-
-    # Sustained pressure (queue + latency together)
-    if prev_queue_weighted > 2 and prev_latency_weighted > 60:
-        risk_score += 1.5
-
-    # Be much more aggressive - lower threshold to catch more slow I/Os
-    return 1 if risk_score >= 2.0 else 0
+    return 0
 # EVOLVE-BLOCK-END
 
 

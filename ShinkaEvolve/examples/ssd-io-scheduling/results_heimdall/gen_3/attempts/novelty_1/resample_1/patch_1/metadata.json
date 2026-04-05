@@ -5,10 +5,10 @@
   "patch_attempt": 1,
   "success": true,
   "num_applied": 1,
-  "patch_name": "weighted_scoring_system",
-  "patch_description": "Replace the simple rule-based approach with a weighted scoring system that combines multiple risk factors. The key insight is that slow I/Os often exhibit combinations of warning signs rather than just exceeding single thresholds. By computing a risk score that weighs current conditions, historical trends, and request characteristics, we can be more aggressive in rejecting potentially slow requests. The scoring system uses lower individual thresholds but requires a cumulative risk score to trigger rejection, allowing it to catch more edge cases while maintaining precision.",
+  "patch_name": "adaptive_latency_thresholds",
+  "patch_description": "The current heuristic uses fixed thresholds (latency > 200, queue_len > 8, etc.) which may not adapt well to varying workload conditions. I'm proposing to make the latency threshold adaptive based on recent historical context.\n\nThe key insight is that what constitutes \"high latency\" depends on the recent baseline. If the system has been running with consistently low latencies (say, prev_latency_avg = 50\u00b5s), then even a current latency of 120\u00b5s might indicate a problem. Conversely, if the system has been under sustained load with prev_latency_avg = 180\u00b5s, then a current latency of 220\u00b5s might be more tolerable.\n\nThis adaptive approach should reduce false admits by catching latency spikes earlier when the system is normally fast, while avoiding excessive false rejects when the system is under sustained but manageable load.\n\nI'm also adding a multiplicative factor that considers the interaction between current conditions and trends - if both current latency and queue length are elevated relative to recent history, we become more aggressive in rejection.",
   "error_msg": null,
-  "timestamp": "2026-03-16T20:50:27.532915",
-  "llm_cost": 0.035232,
+  "timestamp": "2026-03-25T20:35:27.437216",
+  "llm_cost": 0.030987,
   "llm_model": null
 }

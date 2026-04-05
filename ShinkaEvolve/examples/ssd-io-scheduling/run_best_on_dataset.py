@@ -48,6 +48,8 @@ def _plot_combined_eval_figure(
 ) -> Dict[str, int]:
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
     tn, fp, fn, tp = int(cm[0, 0]), int(cm[0, 1]), int(cm[1, 0]), int(cm[1, 1])
+    fpr = fp / max(fp + tn, 1)
+    fnr = fn / max(fn + tp, 1)
 
     raw_lat = np.asarray(latencies, dtype=float)
     accepted_lat = raw_lat[y_pred == 0]
@@ -65,7 +67,8 @@ def _plot_combined_eval_figure(
 
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Fast", "Slow"])
     disp.plot(ax=ax_cm, cmap=plt.cm.Blues, values_format="g", colorbar=False)
-    ax_cm.set_title("Confusion Matrix (Fast/Slow)")
+    title_metrics = f"FPR = {round(fpr * 100, 1)}%  and FNR = {round(fnr * 100, 1)}%"
+    ax_cm.set_title(title_metrics)
 
     ax_cdf.set_xlabel("Latency (us)")
     ax_cdf.set_ylabel("CDF")
