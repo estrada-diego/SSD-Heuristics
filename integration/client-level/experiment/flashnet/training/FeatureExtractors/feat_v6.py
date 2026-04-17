@@ -44,9 +44,9 @@ def start_processing(input_file,output,device):
     
     # Drop unnecessary columns
     try:
-        df = df.drop(columns=["ts_record", "offset", "ts_submit", "size_after_replay"], axis=1)
-    except:
-        df = df.drop(columns=["ts_record", "offset", "ts_submit"], axis=1)
+        df = df.drop(columns=["ts_record", "offset", "ts_submit", "size_after_replay"])
+    except KeyError:
+        df = df.drop(columns=["ts_record", "offset", "ts_submit"])
 
     # Calculate per-IO throughput
     df['throughput'] = df['size']/df['latency']
@@ -72,7 +72,7 @@ def start_processing(input_file,output,device):
 
     # Remove any latency-related feature, except the historical value and the "latency" column
     # The latency column is needed for drawing CDF latency, not to be used as input feature
-    df = df.drop(columns=["throughput", "throughput_drop", "latency_increase"], axis=1)
+    df = df.drop(columns=["throughput", "throughput_drop", "latency_increase"])
 
     # Put non_input_feature column at the last
     non_input_feature = ['latency']

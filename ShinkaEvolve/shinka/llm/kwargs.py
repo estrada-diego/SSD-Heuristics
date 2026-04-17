@@ -136,7 +136,7 @@ def sample_model_kwargs(
         kwargs_dict["max_tokens"] = random.choice(max_tokens)
         think_bool = r_effort != "disabled"
         if think_bool:
-            t = THINKING_TOKENS[r_effort]
+            t = THINKING_TOKENS.get(r_effort, THINKING_TOKENS["medium"])
             thinking_tokens = t if t < kwargs_dict["max_tokens"] else 1024
             kwargs_dict["thinking_budget"] = thinking_tokens
         else:
@@ -151,8 +151,9 @@ def sample_model_kwargs(
         think_bool = r_effort != "disabled"
         if think_bool:
             # filter thinking tokens to be smaller than max_tokens
-            # not auto THINKING_TOKENS
-            t = THINKING_TOKENS[r_effort]
+            # "auto" and other OpenAI-style efforts are not in THINKING_TOKENS;
+            # fall back to "medium" for Bedrock/Anthropic.
+            t = THINKING_TOKENS.get(r_effort, THINKING_TOKENS["medium"])
             thinking_tokens = t if t < kwargs_dict["max_tokens"] else 1024
             # sample only from thinking tokens that are valid
             kwargs_dict["thinking"] = {

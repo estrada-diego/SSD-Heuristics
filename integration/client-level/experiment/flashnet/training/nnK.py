@@ -132,7 +132,7 @@ def train_model(dataset_path, train_eval_split):
     dataset = dataset[reordered_cols]
 
 # Split test and training set
-    x = dataset.copy(deep=True).drop(columns=["reject"], axis=1)
+    x = dataset.copy(deep=True).drop(columns=["reject"])
     y = dataset['reject']
 
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=percent_data_for_eval/100, random_state=42)
@@ -141,8 +141,8 @@ def train_model(dataset_path, train_eval_split):
     # remove latency data from X_train and X_test
     x_train_latency = x_train['latency']
     x_test_latency = x_test['latency']
-    x_train = x_train.drop(columns=["latency"], axis=1) # Avoid using current latency IO as the input feature
-    x_test = x_test.drop(columns=["latency"], axis=1)
+    x_train = x_train.drop(columns=["latency"]) # Avoid using current latency IO as the input feature
+    x_test = x_test.drop(columns=["latency"])
 
 # Data normalization
     # normalizer = layers.Normalization(axis=-1)

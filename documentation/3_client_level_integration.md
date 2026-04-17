@@ -129,11 +129,35 @@ The experiment will begin with `Testbed Reservation`.
 
 + We also provide a **Shinka-based** client-level path that evolves a lightweight, C-translatable admission heuristic from the same baseline replay traces used by Heimdall.
 
-+ Before using the Shinka workflow, install the bundled `ShinkaEvolve` package once:
++ Before using the Shinka workflow, set up the bundled `ShinkaEvolve` package once with `uv`:
 
   ```bash
   cd $HEIMDALL/ShinkaEvolve
-  python3 -m pip install -e .
+  uv venv --python 3.11
+  source .venv/bin/activate
+  uv pip install -e .
+  ```
+
++ Create a `.env` file in `$HEIMDALL/ShinkaEvolve` with at least your OpenAI API key. If you want Shinka to use AWS Bedrock-backed models or embeddings, also set the AWS variables below:
+
+  ```bash
+  OPENAI_API_KEY=sk-proj-your-key-here
+  ANTHROPIC_API_KEY=your-anthropic-key-here              # Optional
+  OPENROUTER_API_KEY=sk-or-v1-...                        # Optional
+  LOCAL_OPENAI_API_KEY=local                             # Optional
+  CUSTOM_API_KEY=...                                     # Optional
+  AWS_ACCESS_KEY_ID=...                                  # Optional, for Bedrock
+  AWS_SECRET_ACCESS_KEY=...                              
+  AWS_REGION_NAME=us-east-1                              
+  ```
+
++ Verify the install before running the client-level workflow:
+
+  ```bash
+  cd $HEIMDALL/ShinkaEvolve
+  source .venv/bin/activate
+  shinka_launch --help
+  python -c "from shinka.core import EvolutionRunner; print('OK')"
   ```
 
 + The Shinka workflow will:
@@ -148,12 +172,23 @@ The experiment will begin with `Testbed Reservation`.
   ```bash
   cd $HEIMDALL/integration/client-level/experiment/
 
-  ./run_shinka.py -devices /dev/nvme0n1 /dev/nvme1n1 -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
+  sudo -E python ./run_shinka.py -devices /dev/nvme0n1 /dev/nvme1n1 -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
+  ```
+
+  > `sudo -E` is required so that your API keys and AWS credentials (set in the shell or in `ShinkaEvolve/.env`) are preserved when the script runs as root.
+
++ To resume a partially completed run (skips datasets and evolution that already finished):
+
+  ```bash
+  sudo -E python ./run_shinka.py -resume -devices /dev/nvme0n1 /dev/nvme1n1 -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
   ```
 
 + If you only want to generate the Shinka datasets without running evolution yet:
 
   ```bash
+  cd $HEIMDALL/ShinkaEvolve
+  source .venv/bin/activate
+
   python3 $HEIMDALL/integration/client-level/shinka/prepare_dataset.py \
     -devices /dev/nvme0n1 /dev/nvme1n1 \
     -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*

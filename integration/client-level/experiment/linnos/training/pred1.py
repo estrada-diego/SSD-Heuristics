@@ -115,13 +115,13 @@ def w_categorical_crossentropy(y_true, y_pred, weights):
     y_pred = tf.cast(y_pred, tf.float32)
     weights = weights.astype(float)
     nb_cl = len(weights)
-    final_mask = K.zeros_like(y_pred[:, 0])
-    y_pred_max = K.max(y_pred, axis=1)
-    y_pred_max = K.reshape(y_pred_max, (K.shape(y_pred)[0], 1))
-    y_pred_max_mat = K.cast(K.equal(y_pred, y_pred_max), K.floatx())
+    final_mask = tf.zeros_like(y_pred[:, 0])
+    y_pred_max = tf.reduce_max(y_pred, axis=1)
+    y_pred_max = tf.reshape(y_pred_max, (tf.shape(y_pred)[0], 1))
+    y_pred_max_mat = tf.cast(tf.equal(y_pred, y_pred_max), tf.float32)
     for c_p, c_t in product(range(nb_cl), range(nb_cl)):
         final_mask += (weights[c_t, c_p] * y_pred_max_mat[:, c_p] * y_true[:, c_t])
-    cross_ent = tf.keras.losses.categorical_hinge(y_true,y_pred) #K.categorical_crossentropy(y_true,y_pred, from_logits=False)
+    cross_ent = tf.keras.losses.categorical_hinge(y_true,y_pred)
     return cross_ent * final_mask
 
 #-------------------------Print FP TP FN TN--------------------------
@@ -170,7 +170,7 @@ percentile_threshold = float(sys.argv[2])
 custom_loss = 5.0
 
 train_data = pd.read_csv(train_input_path, dtype='float32',sep=',', header=None)
-train_data = train_data.sample(frac=1).reset_index(drop=True)
+train_data = train_data.sample(frac=1, random_state=42).reset_index(drop=True)
 train_data = train_data.values
 
 train_input = train_data[:,:31]
@@ -178,7 +178,7 @@ train_output = train_data[:,31]
 
 lat_threshold = np.percentile(train_output, percentile_threshold)
 print("lat_threshold: ",lat_threshold)
-num_train_entries = int(len(train_output) * 0.80)
+num_train_entries = int(len(train_output) * 0.50)
 print("num train entries: ",num_train_entries)
 
 train_Xtrn = train_input[:num_train_entries,:]

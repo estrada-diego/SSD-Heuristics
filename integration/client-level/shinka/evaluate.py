@@ -44,7 +44,7 @@ DEFAULT_DATASET_PATH = "data.csv"
 NUM_RUNS = 3
 NUM_SAMPLES_PER_RUN = 2000
 BASE_SEED = 42
-DEFAULT_TRAIN_EVAL_SPLIT = "100_0"
+DEFAULT_TRAIN_EVAL_SPLIT = "50_50"
 DEFAULT_SPLIT_SECTION = "full"
 
 _cached_dataset: Optional[Tuple[List[Dict[str, float]], List[int]]] = None

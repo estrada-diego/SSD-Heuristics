@@ -22,6 +22,12 @@ PREPARE_SCRIPT = SHINKA_WORKFLOW_ROOT / "prepare_dataset.py"
 RUN_EVO_SCRIPT = SHINKA_WORKFLOW_ROOT / "run_evo.py"
 EXPORT_SCRIPT = SHINKA_WORKFLOW_ROOT / "export_heuristic.py"
 
+# Use the ShinkaEvolve venv Python (installed via `uv pip install -e .`) so that
+# all shinka sub-processes have access to hydra-core and other venv dependencies.
+_REPO_ROOT = CLIENT_LEVEL_ROOT.parent.parent
+_VENV_PYTHON = _REPO_ROOT / "ShinkaEvolve" / ".venv" / "bin" / "python"
+SHINKA_PYTHON = str(_VENV_PYTHON) if _VENV_PYTHON.exists() else sys.executable
+
 
 def get_output_dir(trace_dir: str, devices: List[str]) -> str:
     dev_names = [os.path.basename(dev_path) for dev_path in devices]
@@ -118,7 +124,7 @@ def delete_dir(path: str) -> bool:
 
 def prepare_datasets(trace_dir: str, devices: List[str], skip_existing: bool) -> None:
     cmd = [
-        sys.executable,
+        SHINKA_PYTHON,
         str(PREPARE_SCRIPT),
         "-devices",
         *devices,
@@ -136,7 +142,7 @@ def train_device_heuristic(
     args: argparse.Namespace,
 ) -> None:
     cmd = [
-        sys.executable,
+        SHINKA_PYTHON,
         str(RUN_EVO_SCRIPT),
         "--dataset_path",
         str(dataset_path),
@@ -158,7 +164,7 @@ def train_device_heuristic(
 
 def export_device_heuristic(program_path: Path, output_header: Path, device_idx: int) -> None:
     cmd = [
-        sys.executable,
+        SHINKA_PYTHON,
         str(EXPORT_SCRIPT),
         "--program_path",
         str(program_path),
@@ -271,8 +277,8 @@ if __name__ == "__main__":
     parser.add_argument("-only_training", action="store_true", default=False)
     parser.add_argument("-only_replaying", action="store_true", default=False)
     parser.add_argument("-if_model_updated", action="store_true", default=False)
-    parser.add_argument("--num_generations", type=int, default=int(os.getenv("SHINKA_NUM_GENERATIONS", "40")))
-    parser.add_argument("--train_eval_split", type=str, default=os.getenv("SHINKA_TRAIN_EVAL_SPLIT", "100_0"))
+    parser.add_argument("--num_generations", type=int, default=int(os.getenv("SHINKA_NUM_GENERATIONS", "20")))
+    parser.add_argument("--train_eval_split", type=str, default=os.getenv("SHINKA_TRAIN_EVAL_SPLIT", "50_50"))
     parser.add_argument("--split_section", type=str, choices=["train", "eval", "full"], default=os.getenv("SHINKA_SPLIT_SECTION", "train"))
     parser.add_argument("--max_parallel_jobs", type=int, default=int(os.getenv("SHINKA_MAX_PARALLEL_JOBS", "4")))
     parser.add_argument("--disable_meta", action="store_true")

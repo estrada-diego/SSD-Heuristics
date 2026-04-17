@@ -36,18 +36,63 @@ The framework supports **parallel evaluation of candidates** locally or on a Slu
 
 ## Installation & Quick Start 🚀
 
+The fastest setup is with `uv`.
+
 ```bash
 # Install uv if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create environment and install Shinka
+# Clone and enter the repo
+git clone <shinka-repository-url>
 cd ShinkaEvolve
+
+# Create and activate a Python 3.11 environment
 uv venv --python 3.11
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e .
 
-# Run your first evolution experiment
-shinka_launch variant=circle_packing_example
+# Install Shinka in editable mode
+uv pip install -e .
+```
+
+Create a `.env` file in the project root before your first run:
+
+```bash
+OPENAI_API_KEY=sk-proj-your-key-here
+ANTHROPIC_API_KEY=your-anthropic-key-here              # Optional
+OPENROUTER_API_KEY=sk-or-v1-...                        # Optional
+LOCAL_OPENAI_API_KEY=local                             # Optional
+CUSTOM_API_KEY=...                                     # Optional
+```
+
+Verify the installation:
+
+```bash
+shinka_launch --help
+python -c "from shinka.core import ShinkaEvolveRunner; print('OK')"
+```
+
+Run your first experiment:
+
+```bash
+# Default baseline
+shinka_launch
+
+# Or a small explicit run
+shinka_launch \
+    task=circle_packing \
+    database=island_small \
+    evolution=small_budget \
+    cluster=local \
+    evo_config.num_generations=5
+```
+
+If you prefer the direct task-directory launcher used by agents:
+
+```bash
+shinka_run \
+    --task-dir examples/circle_packing \
+    --results_dir results/circle_agent_run \
+    --num_generations 20
 ```
 
 For detailed installation instructions and usage examples, see the [Getting Started Guide](docs/getting_started.md).

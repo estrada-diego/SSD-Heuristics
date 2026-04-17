@@ -33,6 +33,8 @@ def _resolve_llm_models(cli_value: str | None) -> List[str]:
         models.append("gemini-2.5-flash")
     if os.getenv("ANTHROPIC_API_KEY"):
         models.append("claude-sonnet-4-6")
+    if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
+        models.append("us.anthropic.claude-sonnet-4-6-v1:0")
 
     deduped: List[str] = []
     for model in models:
@@ -122,7 +124,7 @@ def main() -> None:
     parser.add_argument("--llm_models", type=str, default=None, help="Comma-separated model list.")
     parser.add_argument("--embedding_model", type=str, default=None, help="Embedding model or empty string to disable embeddings.")
     parser.add_argument("--num_generations", type=int, default=int(os.getenv("SHINKA_NUM_GENERATIONS", "40")))
-    parser.add_argument("--train_eval_split", type=str, default=os.getenv("SHINKA_TRAIN_EVAL_SPLIT", "100_0"))
+    parser.add_argument("--train_eval_split", type=str, default=os.getenv("SHINKA_TRAIN_EVAL_SPLIT", "50_50"))
     parser.add_argument("--split_section", type=str, choices=["full", "train", "eval"], default=os.getenv("SHINKA_SPLIT_SECTION", "train"))
     parser.add_argument("--max_parallel_jobs", type=int, default=int(os.getenv("SHINKA_MAX_PARALLEL_JOBS", "4")))
     parser.add_argument("--num_islands", type=int, default=int(os.getenv("SHINKA_NUM_ISLANDS", "2")))
@@ -133,6 +135,12 @@ def main() -> None:
     from shinka.core import EvolutionConfig, EvolutionRunner
     from shinka.database import DatabaseConfig
     from shinka.launch import LocalJobConfig
+
+    # Load ShinkaEvolve/.env so API keys are available even when invoked via sudo
+    _env_file = SHINKA_REPO_ROOT / ".env"
+    if _env_file.exists():
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=_env_file, override=False)
 
     dataset_path = Path(args.dataset_path).resolve()
     if not dataset_path.exists():

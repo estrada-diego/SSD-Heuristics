@@ -42,6 +42,7 @@ dependencies = [
     "seaborn",
     "moviepy",
     "scikit-learn",
+    "statsmodels",
     "adjustText",
     "markdown",
     "aiofiles",

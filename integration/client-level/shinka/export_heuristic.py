@@ -136,6 +136,11 @@ class PredictToCTranslator:
                 pieces.append(f"({current_left} {self._emit_cmp(op)} {rhs})")
                 current_left = rhs
             return "(" + " && ".join(pieces) + ")"
+        if isinstance(node, ast.IfExp):
+            condition = self._emit_expr(node.test)
+            body = self._emit_expr(node.body)
+            orelse = self._emit_expr(node.orelse)
+            return f"({condition} ? {body} : {orelse})"
         if isinstance(node, ast.Call):
             if not isinstance(node.func, ast.Name):
                 raise ValueError("Only simple builtin calls are supported in predict().")

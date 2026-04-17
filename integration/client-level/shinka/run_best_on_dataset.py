@@ -209,7 +209,7 @@ def main() -> None:
     parser.add_argument("-dataset", type=str, help="Single dataset path.")
     parser.add_argument("-datasets", nargs="+", type=str, help="Multiple dataset paths.")
     parser.add_argument("--output_root", type=str, default="results/final_eval")
-    parser.add_argument("--split_tag", type=str, default="100_0")
+    parser.add_argument("--split_tag", type=str, default="50_50")
     parser.add_argument(
         "--split_section",
         type=str,
