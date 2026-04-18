@@ -148,7 +148,13 @@ def _compute_metrics(y_true: List[int], y_pred: List[int]) -> Dict[str, Any]:
 
     false_admit_rate = fn / (fn + tp) if (fn + tp) > 0 else 0.0
     false_reject_rate = fp / (fp + tn) if (fp + tn) > 0 else 0.0
-    combined_score = 0.7 * weighted_f1 + 0.3 * (1.0 - false_admit_rate)
+    # Explicitly penalise both FAR and FRR so "reject everything" (FAR=0, FRR=1)
+    # cannot score high. FAR is weighted more (slow I/Os admitted are costlier).
+    combined_score = (
+        0.5 * weighted_f1
+        + 0.3 * (1.0 - false_admit_rate)
+        + 0.2 * (1.0 - false_reject_rate)
+    )
 
     return {
         "combined_score": round(combined_score, 6),
@@ -248,12 +254,13 @@ def aggregate_metrics_fn(results: List[Any]) -> Dict[str, Any]:
     text_feedback = (
         f"Heuristic evaluation over {len(results)} runs:\n"
         f"  combined_score   : {aggregated['combined_score']:.4f}  (target: maximise)\n"
+        f"  Score formula    : 0.5*weighted_f1 + 0.3*(1-FAR) + 0.2*(1-FRR)\n"
         f"  weighted_f1      : {aggregated['weighted_f1']:.4f}\n"
         f"  accuracy         : {aggregated['accuracy']:.4f}\n"
         f"  false_admit_rate : {aggregated['false_admit_rate']:.4f}"
-        f"  <- slow I/Os wrongly admitted (most costly; minimise this)\n"
+        f"  <- slow I/Os wrongly admitted (most costly; minimise)\n"
         f"  false_reject_rate: {aggregated['false_reject_rate']:.4f}"
-        f"  <- fast I/Os wrongly rejected (secondary cost)\n"
+        f"  <- fast I/Os wrongly rejected (also penalised; rejecting everything scores ~0.63 max)\n"
         f"  confusion_matrix : TN={tn_total}, FP={fp_total}, FN={fn_total}, TP={tp_total}\n"
     )
 
