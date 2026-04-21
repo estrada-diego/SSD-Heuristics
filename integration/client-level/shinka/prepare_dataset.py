@@ -66,6 +66,13 @@ def _build_dataset(feature_csv: Path, output_csv: Path) -> None:
     if missing:
         raise ValueError(f"Missing columns in {feature_csv}: {missing}")
 
+    # Relabel using p70 read latency threshold — direct alignment with goal of
+    # minimizing tail latency, replacing the GC-throughput-drop heuristic from tail_v1.py.
+    p70 = df["latency"].quantile(0.70)
+    df["reject"] = (df["latency"] > p70).astype(int)
+    print(f"Relabeled with p70 latency threshold = {p70:.1f} µs  "
+          f"(reject rate: {df['reject'].mean():.1%})")
+
     df = df[SHINKA_DATASET_COLUMNS].dropna().reset_index(drop=True)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output_csv, index=False)

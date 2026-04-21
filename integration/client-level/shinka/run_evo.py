@@ -64,8 +64,47 @@ def _resolve_embedding_model(cli_value: str | None) -> str:
     return ""
 
 
-def _task_prompt() -> str:
-    return """
+def _compute_dataset_stats(dataset_path: Path) -> str:
+    import csv
+    import numpy as np
+    feature_cols = [
+        "size", "queue_len",
+        "prev_queue_len_1", "prev_queue_len_2", "prev_queue_len_3",
+        "prev_latency_1", "prev_latency_2", "prev_latency_3",
+        "prev_throughput_1", "prev_throughput_2", "prev_throughput_3",
+    ]
+    data: dict = {c: [] for c in feature_cols}
+    labels = []
+    try:
+        with open(dataset_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                for col in feature_cols:
+                    if col in row:
+                        data[col].append(float(row[col]))
+                if "reject" in row:
+                    labels.append(int(row["reject"]))
+    except Exception:
+        return ""
+    lines = ["Dataset feature statistics (use these to calibrate thresholds):"]
+    for col in feature_cols:
+        vals = np.array(data[col])
+        if len(vals) > 0:
+            lines.append(
+                f"  {col:<24} mean={np.mean(vals):>9.1f}  "
+                f"p50={np.percentile(vals,50):>9.1f}  "
+                f"p90={np.percentile(vals,90):>9.1f}  "
+                f"p99={np.percentile(vals,99):>9.1f}"
+            )
+    if labels:
+        r = np.mean(labels)
+        lines.append(f"  {'slow_io_rate':<24} {r:.3f}  ({r*100:.1f}% of I/Os are labelled slow/reject)")
+    return "\n".join(lines)
+
+
+def _task_prompt(dataset_stats: str = "") -> str:
+    stats_section = f"\n{dataset_stats}\n" if dataset_stats else ""
+    return f"""
 You are a world-class systems programming expert specializing in storage I/O
 optimization and latency-sensitive SSD scheduling.
 
@@ -92,11 +131,16 @@ Output:
 - 0 -> KEEP    (predicted normal read; keep it local)
 
 Fitness to maximize:
-  combined_score = 0.7 * weighted_f1 + 0.3 * (1 - false_admit_rate)
+  combined_score = 0.5 * MCC + 0.3 * (1 - false_admit_rate) + 0.2 * (1 - false_reject_rate)
+
+  MCC (Matthews Correlation Coefficient) = (TP*TN - FP*FN) / sqrt((TP+FP)(TP+FN)(TN+FP)(TN+FN))
+  MCC = 0 for any degenerate solution (reject-all or keep-all), regardless of class balance.
+  MCC = 1 only for perfect classification.
 
 Key asymmetry:
 - False admit  (predict KEEP for a truly slow I/O) is the worst mistake.
-- False reject (predict REJECT for a truly fast I/O) is usually less harmful.
+- False reject (predict REJECT for a truly fast I/O) is also penalised.
+- Rejecting everything always scores 0.3 max — you must correctly identify BOTH fast and slow I/Os.
 
 Hard deployment constraints:
 - predict() must return only 0 or 1.
@@ -106,7 +150,9 @@ Hard deployment constraints:
   if/elif/else, and return statements.
 - Avoid loops, comprehensions, helper functions, recursion, exceptions,
   containers, imports inside predict(), and file/network access.
-- Builtins max(), min(), and abs() are acceptable if used sparingly.
+- Builtins max(), min(), and abs() are acceptable. max()/min() support 2 or more arguments.
+- CRITICAL: Never include git conflict markers (=======, <<<<<<<, >>>>>>>) anywhere in your output.
+  These are not valid Python and will cause the program to fail immediately with score 0.
 
 Good ideas to explore:
 - latency history thresholds
@@ -114,7 +160,7 @@ Good ideas to explore:
 - trend or momentum signals from recent history
 - size-aware thresholds
 - simple composite risk scores
-"""
+{stats_section}"""
 
 
 def main() -> None:
@@ -130,6 +176,7 @@ def main() -> None:
     parser.add_argument("--num_islands", type=int, default=int(os.getenv("SHINKA_NUM_ISLANDS", "2")))
     parser.add_argument("--archive_size", type=int, default=int(os.getenv("SHINKA_ARCHIVE_SIZE", "40")))
     parser.add_argument("--disable_meta", action="store_true", help="Disable meta recommendations and novelty judges.")
+    parser.add_argument("--init_program_path", type=str, default=None, help="Seed program path; defaults to initial.py.")
     args = parser.parse_args()
 
     from shinka.core import EvolutionConfig, EvolutionRunner
@@ -145,6 +192,7 @@ def main() -> None:
     dataset_path = Path(args.dataset_path).resolve()
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset path does not exist: {dataset_path}")
+    dataset_stats = _compute_dataset_stats(dataset_path)
 
     results_dir = Path(args.results_dir).resolve() if args.results_dir else (SHINKA_WORKFLOW_ROOT / "results" / dataset_path.stem).resolve()
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -180,7 +228,7 @@ def main() -> None:
     primary_model = llm_models[0]
     secondary_model = llm_models[-1]
     evo_config = EvolutionConfig(
-        task_sys_msg=_task_prompt(),
+        task_sys_msg=_task_prompt(dataset_stats),
         patch_types=["diff", "full", "cross"],
         patch_type_probs=[0.6, 0.3, 0.1],
         num_generations=args.num_generations,
@@ -205,7 +253,7 @@ def main() -> None:
         llm_dynamic_selection="ucb1" if len(llm_models) > 1 else None,
         llm_dynamic_selection_kwargs={"exploration_coef": 1.0} if len(llm_models) > 1 else {},
         use_text_feedback=True,
-        init_program_path=str(SHINKA_WORKFLOW_ROOT / "initial.py"),
+        init_program_path=args.init_program_path or str(SHINKA_WORKFLOW_ROOT / "initial.py"),
         results_dir=str(results_dir),
     )
 

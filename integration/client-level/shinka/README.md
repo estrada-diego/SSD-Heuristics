@@ -24,15 +24,24 @@ python3 -m pip install -e .
 From [`integration/client-level/experiment`](/Users/diego/SSD-Heuristics/integration/client-level/experiment):
 
 ```bash
-./run_shinka.py \
+sudo -E python ./run_shinka.py \
   -devices /dev/nvme0n1 /dev/nvme1n1 \
+  -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
+```
+
+Add `-resume` to skip traces whose evolution already completed and only run the remaining ones:
+
+```bash
+sudo -E python ./run_shinka.py \
+  -devices /dev/nvme0n1 /dev/nvme1n1 \
+  -resume \
   -trace_dirs $HEIMDALL/integration/client-level/data/*/*/*
 ```
 
 `run_shinka.py` will:
 
 - generate datasets under `.../<dev0>...<dev1>/shinka/training_results/`
-- run Shinka once per original device
+- run Shinka once per original device; device 1 is **seeded with the best heuristic from device 0** so evolution starts from a stronger baseline rather than `initial.py`
 - export `best/main.py` into replay-time headers
 - compile the `experiment/shinka` replayer in a temporary workspace
 - replay the traces with the exported heuristic
@@ -53,6 +62,15 @@ Run evolution on one dataset:
 python integration/client-level/shinka/run_evo.py \
   --dataset_path /path/to/dataset_device_0.csv \
   --results_dir /path/to/evolution_device_0
+```
+
+To seed evolution from an existing heuristic (e.g. transfer device 0's best program to device 1):
+
+```bash
+python integration/client-level/shinka/run_evo.py \
+  --dataset_path /path/to/dataset_device_1.csv \
+  --results_dir /path/to/evolution_device_1 \
+  --init_program_path /path/to/evolution_device_0/best/main.py
 ```
 
 Export the best program to C:

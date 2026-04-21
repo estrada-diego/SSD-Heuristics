@@ -93,8 +93,12 @@ def plot_cdf(data, x_label, figure_path):
     # print("===== output figure : " + figure_path)
     plt.figure().clear() 
 
-def analyze_profile(input_path):
-    parent_dir = str(Path(input_path).parent)
+def analyze_profile(input_path, output_dir=None):
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        parent_dir = output_dir
+    else:
+        parent_dir = str(Path(input_path).parent)
     trace_name = os.path.basename(input_path) # with extension
 
     df = pd.read_csv(input_path, header=None, sep=',')  
@@ -215,6 +219,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-files", help="List of file path of the trace", nargs='+',type=str)
     parser.add_argument("-file", help="File path of the trace",type=str)
+    parser.add_argument("-output_dir", help="Directory to save plots (default: same dir as trace)", type=str, default=None)
     args = parser.parse_args()
     if (not args.file and not args.files):
         print("    ERROR: You must provide these arguments: -file <the input trace>")
@@ -224,8 +229,7 @@ if __name__ == '__main__':
         arr_profiles += args.files
     elif args.file:
         arr_profiles.append(args.file)
-        
+
     print("arr_profiles = " + str(arr_profiles))
     for input_path in arr_profiles:
-        # print(input_path)
-        analyze_profile(input_path)
+        analyze_profile(input_path, output_dir=args.output_dir)

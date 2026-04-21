@@ -29,8 +29,35 @@ class PredictToCTranslator:
         self.function_name = function_name
         self.locals: Set[str] = set()
 
+    def _collect_assign_targets(self, statements: Iterable[ast.stmt]) -> List[str]:
+        """Return all assignment target names across all branches, in order of first appearance."""
+        seen: Set[str] = set()
+        result: List[str] = []
+        for stmt in statements:
+            if isinstance(stmt, ast.Assign):
+                if len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+                    name = stmt.targets[0].id
+                    if name not in seen:
+                        seen.add(name)
+                        result.append(name)
+            elif isinstance(stmt, ast.If):
+                for name in self._collect_assign_targets(stmt.body):
+                    if name not in seen:
+                        seen.add(name)
+                        result.append(name)
+                for name in self._collect_assign_targets(stmt.orelse):
+                    if name not in seen:
+                        seen.add(name)
+                        result.append(name)
+        return result
+
     def translate(self, predict_fn: ast.FunctionDef, source_path: Path) -> str:
-        body_lines = self._emit_block(self._strip_docstring(predict_fn.body), indent=1)
+        body_stmts = self._strip_docstring(predict_fn.body)
+        # Hoist all local variable declarations to avoid C block-scope issues.
+        all_locals = self._collect_assign_targets(body_stmts)
+        self.locals = set(all_locals)
+        decl_lines = [f"    double {name} = 0.0;" for name in all_locals]
+        body_lines = self._emit_block(body_stmts, indent=1)
         guard = f"{self.function_name.upper()}_H"
         return "\n".join(
             [
@@ -41,6 +68,7 @@ class PredictToCTranslator:
                 "",
                 f"/* Generated from {source_path} */",
                 f"static int {self.function_name}(const ShinkaFeatures *features) {{",
+                *decl_lines,
                 *body_lines,
                 "}",
                 "",
@@ -149,13 +177,19 @@ class PredictToCTranslator:
                 raise ValueError(f"Unsupported call in predict(): {func_name}")
             args = [self._emit_expr(arg) for arg in node.args]
             if func_name == "max":
-                if len(args) != 2:
-                    raise ValueError("max() must receive exactly two arguments.")
-                return f"shinka_max_double({args[0]}, {args[1]})"
+                if len(args) < 2:
+                    raise ValueError("max() must receive at least two arguments.")
+                result = f"shinka_max_double({args[0]}, {args[1]})"
+                for extra in args[2:]:
+                    result = f"shinka_max_double({result}, {extra})"
+                return result
             if func_name == "min":
-                if len(args) != 2:
-                    raise ValueError("min() must receive exactly two arguments.")
-                return f"shinka_min_double({args[0]}, {args[1]})"
+                if len(args) < 2:
+                    raise ValueError("min() must receive at least two arguments.")
+                result = f"shinka_min_double({args[0]}, {args[1]})"
+                for extra in args[2:]:
+                    result = f"shinka_min_double({result}, {extra})"
+                return result
             if func_name == "abs":
                 if len(args) != 1:
                     raise ValueError("abs() must receive exactly one argument.")

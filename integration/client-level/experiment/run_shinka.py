@@ -140,6 +140,7 @@ def train_device_heuristic(
     dataset_path: Path,
     results_dir: Path,
     args: argparse.Namespace,
+    init_program_path: Path | None = None,
 ) -> None:
     cmd = [
         SHINKA_PYTHON,
@@ -159,6 +160,8 @@ def train_device_heuristic(
     ]
     if args.disable_meta:
         cmd.append("--disable_meta")
+    if init_program_path is not None:
+        cmd += ["--init_program_path", str(init_program_path)]
     run_checked(cmd)
 
 
@@ -200,6 +203,7 @@ def train_shinka(trace_dir: str, devices: List[str], args: argparse.Namespace) -
     prepare_datasets(trace_dir, devices, skip_existing=args.resume)
     training_root = get_training_results_dir(trace_dir, devices)
 
+    prev_best_program: Path | None = None
     for device_idx in range(len(devices)):
         dataset_path = training_root / f"dataset_device_{device_idx}.csv"
         results_dir = training_root / f"evolution_device_{device_idx}"
@@ -207,13 +211,18 @@ def train_shinka(trace_dir: str, devices: List[str], args: argparse.Namespace) -
 
         if args.resume and best_program.exists():
             print(f"Evolution already exists for device {device_idx}, skipping: {best_program}")
+            prev_best_program = best_program
             continue
 
         if not dataset_path.exists():
             print(f"Dataset is missing for device {device_idx}: {dataset_path}")
             return False
 
-        train_device_heuristic(dataset_path, results_dir, args)
+        init_path = prev_best_program if device_idx > 0 and prev_best_program is not None else None
+        if init_path is not None:
+            print(f"Seeding device {device_idx} evolution from device {device_idx - 1} best: {init_path}")
+        train_device_heuristic(dataset_path, results_dir, args, init_program_path=init_path)
+        prev_best_program = best_program
 
     return ensure_exported_headers(trace_dir, devices, args)
 
