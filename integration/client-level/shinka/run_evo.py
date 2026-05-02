@@ -131,11 +131,12 @@ Output:
 - 0 -> KEEP    (predicted normal read; keep it local)
 
 Fitness to maximize:
-  combined_score = 0.5 * MCC + 0.3 * (1 - false_admit_rate) + 0.2 * (1 - false_reject_rate)
+  combined_score = 0.6 * weighted_f1 + 0.3 * (1 - lat_weighted_FAR) + 0.1 * MCC
 
-  MCC (Matthews Correlation Coefficient) = (TP*TN - FP*FN) / sqrt((TP+FP)(TP+FN)(TN+FP)(TN+FN))
-  MCC = 0 for any degenerate solution (reject-all or keep-all), regardless of class balance.
-  MCC = 1 only for perfect classification.
+  weighted_F1: false admits penalised 2× heavier than false rejects (FA_WEIGHT=2.0)
+  lat_weighted_FAR: false admits weighted by actual I/O latency — admitting a 500µs
+    read is penalised more than admitting a 120µs read
+  MCC: guard against degenerate solutions (reject-all or keep-all both score 0)
 
 Key asymmetry:
 - False admit  (predict KEEP for a truly slow I/O) is the worst mistake.
